@@ -1,0 +1,25 @@
+#errlogInit(5000)
+< envPaths
+
+# Tell EPICS all about the record types, device-support modules, drivers, etc.
+dbLoadDatabase("../../dbd/automation1.dbd")
+automation1_registerRecordDeviceDriver(pdbbase)
+
+Automation1CreateController("Automation1", "000.000.000.000", 4, 1000, 1000)
+
+Automation1CreateProfile("Automation1", 2000)
+
+### Motors
+dbLoadTemplate "motor.substitutions.automation1"
+
+iocInit
+
+# This IOC does not use save/restore, so set values of some PVs
+dbpf("Auto1:m1.RTRY", "0")
+dbpf("Auto1:m1.TWV", "0.1")
+dbpf("Auto1:m2.RTRY", "0")
+dbpf("Auto1:m2.TWV", "0.1")
+dbpf("Auto1:m3.RTRY", "0")
+dbpf("Auto1:m3.TWV", "0.1")
+dbpf("Auto1:m4.RTRY", "0")
+dbpf("Auto1:m4.TWV", "0.1")

@@ -1,0 +1,8 @@
+# RELEASE - Location of external support modules
+
+# Use motor/module's generated release file when buidling inside motor
+-include $(TOP)/../../../RELEASE.$(EPICS_HOST_ARCH).local
+# Use motorAerotechAutomation1's release file when building inside motorAerotechAutomation1, but outside motor
+-include $(TOP)/../../configure/RELEASE.local
+# Use automation1IOC's RELEASE.local when building outside motorAerotechAutomation1
+-include $(TOP)/configure/RELEASE.local

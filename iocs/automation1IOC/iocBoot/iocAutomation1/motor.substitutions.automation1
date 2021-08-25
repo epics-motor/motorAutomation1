@@ -1,0 +1,29 @@
+
+file "$(MOTOR)/db/basic_asyn_motor.db"
+{
+pattern
+{P,      N,       M,        DTYP,         PORT,  ADDR,     DESC,  EGU,   DIR,   VELO,  VBAS, ACCL, BDST, BVEL, BACC, MRES, PREC,   DHLM, DLLM,  INIT}
+{Auto1:, 1, "m$(N)", "asynMotor",  Automation1,     0, "X Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
+{Auto1:, 2, "m$(N)", "asynMotor",  Automation1,     1, "Y Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
+{Auto1:, 3, "m$(N)", "asynMotor",  Automation1,     2, "Z Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
+{Auto1:, 4, "m$(N)", "asynMotor",  Automation1,     3, "U Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
+}
+
+file "$(MOTOR)/db/profileMoveController.template"
+{
+pattern
+{     P,     R,        PORT, NAXES, NPOINTS, NPULSES, TIMEOUT}
+{Auto1:,  pm1:, Automation1,     4,    2000,    2000,       1}
+}
+
+file "$(MOTOR)/db/profileMoveAxis.template"
+{
+pattern
+{     P,      R, M,         PORT, ADDR, NPOINTS, NREADBACK,     MOTOR, PREC, TIMEOUT}
+{Auto1:,   pm1:, 1,  Automation1,    0,    2000,      2000,  Auto1:m1,    3,       1}
+{Auto1:,   pm1:, 2,  Automation1,    1,    2000,      2000,  Auto1:m2,    3,       1}
+{Auto1:,   pm1:, 3,  Automation1,    2,    2000,      2000,  Auto1:m3,    3,       1}
+{Auto1:,   pm1:, 4,  Automation1,    3,    2000,      2000,  Auto1:m4,    3,       1}
+}
+
+
