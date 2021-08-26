@@ -36,6 +36,9 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionCommand, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
+
+    // Gain Support is required for setClosedLoop to be called
+    setIntegerParam(pC->motorStatusGainSupport_, 1);
 }
 
 // Destructor.
