@@ -2,9 +2,9 @@
 O.*
 *.swp
 *BAK.adl
-/bin/
-/db/
-/dbd/
+bin/
+db/
+dbd/
 /html/
 /include/
 /lib/
