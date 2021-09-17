@@ -32,9 +32,9 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
 {
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_DriveStatus, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
-    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionCommand, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
 
     // Gain Support is required for setClosedLoop to be called
@@ -272,6 +272,8 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     bool pollSuccessfull = true;
     double results[5];
     int axisStatus;
+    int driveStatus;
+    int enabled;
     double programPositionFeedback;
     double programVelocityFeedback;
     double programPositionCommand;
@@ -291,9 +293,9 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         goto skip;
     }
     axisStatus = results[0];
-    programPositionFeedback = results[1];
-    programVelocityFeedback = results[2];
-    programPositionCommand = results[3];
+    driveStatus = results[1];
+    programPositionFeedback = results[2];
+    programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
 
     if (!Automation1_Parameter_GetAxisValue(pC_->controller_,
@@ -305,6 +307,8 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         goto skip;
     }
 
+    enabled = driveStatus & Automation1DriveStatus_Enabled;
+    setIntegerParam(pC_->motorStatusPowerOn_, enabled);
     setDoubleParam(pC_->motorPosition_, programPositionFeedback / resolution);
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam);
 
