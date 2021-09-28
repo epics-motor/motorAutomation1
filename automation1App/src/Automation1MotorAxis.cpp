@@ -131,7 +131,7 @@ asynStatus Automation1MotorAxis::move(double position, int relative, double minV
   * \param[in] minVelocity  The initial velocity. Not used by Automation1.
   * \param[in] maxVelocity  The target velocity for the home. Units=steps/sec.
   * \param[in] acceleration The acceleration value. Units=steps/sec/sec.
-  * \param[in] forwards     Flag indicating motor direction. Note used by Automation1.
+  * \param[in] forwards     Flag indicating motor direction. Not used by Automation1.
   */
 asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, double acceleration, int forwards)
 {
@@ -379,11 +379,6 @@ skip:
 
     return pollSuccessfull ? asynSuccess : asynError;
 }
-
-// NOTE: The below function is being called whenever the Python EPICS library caputs
-//       data to the record, however positions is empty and numPoints is 0.  Using
-//       the same library to get the variables in question from the record shows that they
-//       are set to the correct values.  Need to investigate further.
 
 /** Function to define the motor positions for a profile move.
   * This function calls the base class method, then converts the positions to
