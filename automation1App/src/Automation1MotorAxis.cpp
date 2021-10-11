@@ -276,7 +276,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     int enabled;
     double programPositionFeedback;
     double programVelocityFeedback;
-    double programPositionCommand;
+    //double programPositionCommand;
     double countsPerUnitParam;
     int axisFaults;
     int done;
@@ -297,6 +297,14 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programPositionFeedback = results[2];
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
+
+    asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
+              "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
+              axisNo_,
+              axisStatus,
+              driveStatus,
+              programPositionFeedback,
+              programVelocityFeedback);
 
     if (!Automation1_Parameter_GetAxisValue(pC_->controller_,
         axisNo_,
