@@ -73,11 +73,9 @@ void Automation1MotorAxis::report(FILE* fp, int level)
   */
 asynStatus Automation1MotorAxis::move(double position, int relative, double minVelocity, double maxVelocity, double acceleration)
 {
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-    double adjustedAcceleration = acceleration * resolution;
-    double adjustedVelocity = maxVelocity * resolution;
-    double adjustedPosition = position * resolution;
+    double adjustedAcceleration = acceleration / countsPerUnitParam_;
+    double adjustedVelocity = maxVelocity / countsPerUnitParam_;
+    double adjustedPosition = position / countsPerUnitParam_;
     bool moveSuccessful;
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
@@ -135,9 +133,7 @@ asynStatus Automation1MotorAxis::move(double position, int relative, double minV
   */
 asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, double acceleration, int forwards)
 {
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-    double adjustedAcceleration = acceleration * resolution;
+    double adjustedAcceleration = acceleration / countsPerUnitParam_;
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
                                                 1,
@@ -169,10 +165,8 @@ asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, do
   */
 asynStatus Automation1MotorAxis::moveVelocity(double minVelocity, double maxVelocity, double acceleration)
 {
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-    double adjustedAcceleration = acceleration * resolution;
-    double adjustedVelocity = maxVelocity * resolution;
+    double adjustedAcceleration = acceleration / countsPerUnitParam_;
+    double adjustedVelocity = maxVelocity / countsPerUnitParam_;
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
                                                 1,
@@ -220,9 +214,7 @@ asynStatus Automation1MotorAxis::stop(double acceleration)
   */
 asynStatus Automation1MotorAxis::setPosition(double position)
 {
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-    double adjustedPosition = position * resolution;
+    double adjustedPosition = position / countsPerUnitParam_;
 
     if (Automation1_Command_PositionOffsetSet(pC_->controller_, 1, &axisNo_, 1, &adjustedPosition, 1))
     {
@@ -277,17 +269,9 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     double programPositionFeedback;
     double programVelocityFeedback;
     //double programPositionCommand;
-    double countsPerUnitParam;
     int axisFaults;
     int done;
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-
-    asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
-              "getDoubleparam(%d): motor record resolution = %lf\n",
-              axisNo_,
-              resolution);
-
+    
     // This actually retrieves the status items from the controller.
     if (!Automation1_Status_GetResults(pC_->controller_,
                                        statusConfig_,
@@ -314,7 +298,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     if (!Automation1_Parameter_GetAxisValue(pC_->controller_,
         axisNo_,
         Automation1AxisParameterId_CountsPerUnit,
-        &countsPerUnitParam))
+        &countsPerUnitParam_))
     {
         pollSuccessfull = false;
         goto skip;
@@ -323,12 +307,12 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetAxisValue(%d): counts per unit = %lf\n",
               axisNo_,
-              countsPerUnitParam);
+              countsPerUnitParam_);
 
     enabled = driveStatus & Automation1DriveStatus_Enabled;
     setIntegerParam(pC_->motorStatusPowerOn_, enabled);
-    setDoubleParam(pC_->motorPosition_, programPositionFeedback / resolution);
-    setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam);
+    setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);
+    setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
 
     done = axisStatus & Automation1AxisStatus_MotionDone;
     setIntegerParam(pC_->motorStatusDone_, done);

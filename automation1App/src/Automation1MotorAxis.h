@@ -44,7 +44,9 @@ private:
     // calls to the C API.  To avoid duplicate code, we wrap calls 
     // to those functions and to asynPrint in this function.
     void logError(const char* driverMessage);
-
+    
+    double countsPerUnitParam_;    
+    
     friend class Automation1MotorController;
 };
 
