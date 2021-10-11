@@ -283,6 +283,11 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     double resolution;
     pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
 
+    asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
+              "getDoubleparam(%d): motor record resolution = %lf\n",
+              axisNo_,
+              resolution);
+
     // This actually retrieves the status items from the controller.
     if (!Automation1_Status_GetResults(pC_->controller_,
                                        statusConfig_,
@@ -314,6 +319,11 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         pollSuccessfull = false;
         goto skip;
     }
+
+    asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
+              "Automation1_Status_GetAxisValue(%d): counts per unit = %lf\n",
+              axisNo_,
+              countsPerUnitParam);
 
     enabled = driveStatus & Automation1DriveStatus_Enabled;
     setIntegerParam(pC_->motorStatusPowerOn_, enabled);
