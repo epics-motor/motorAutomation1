@@ -268,7 +268,6 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     int enabled;
     double programPositionFeedback;
     double programVelocityFeedback;
-    //double programPositionCommand;
     int axisFaults;
     int done;
     
