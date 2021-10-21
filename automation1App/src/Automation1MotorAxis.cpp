@@ -371,7 +371,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         setIntegerParam(pC_->motorStatusFollowingError_, 0);
     }
 
-    setIntegerParam(pC_->motorStatusAtHome_, axisStatus & Automation1AxisStatus_Homed);
+    setIntegerParam(pC_->motorStatusHomed_, axisStatus & Automation1AxisStatus_Homed);
 
 skip:
 
