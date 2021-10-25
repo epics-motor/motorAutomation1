@@ -248,6 +248,7 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
             return asynError;
         }
     }
+    setIntegerParam(pC_->motorStatusProblem_,0);	//Clear problem bit if it was set due to "axis not enabled"
     return asynSuccess;
 }
 
@@ -422,6 +423,12 @@ void Automation1MotorAxis::logError(const char* driverMessage)
     int errorCode = Automation1_GetLastError();
     char errorMessage[1024];
     Automation1_GetLastErrorMessage(errorMessage, 1024);
+
+    // Check error code for "Axis not enabled" error (57000) and set "problem" status bit in that case.
+    if(errorCode == 57000)
+    {
+    	setIntegerParam(pC_->motorStatusProblem_,1);
+    }
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
               "Driver: Automation1. Function Message: %s. Axis: %d. API Error Code: %d. API Error Message: %s\n",
