@@ -17,8 +17,10 @@
 #define PROFILE_MOVE_ABORT_TIMEOUT 1000
 #define DATA_POINTS_PER_SECOND 1000
 
-// No controller-specific parameters yet.
-#define NUM_AUTOMATION1_PARAMS 0  
+// New params added
+#define AUTOMATION1_C_AckAllString		"AUTOMATION1_C_ACKALL"	//ajc-osl
+#define NUM_AUTOMATION1_PARAMS 1
+
 
 class epicsShareClass Automation1MotorController : public asynMotorController
 {
@@ -29,6 +31,10 @@ public:
     void report(FILE* fp, int level);
     Automation1MotorAxis* getAxis(asynUser* pasynUser);
     Automation1MotorAxis* getAxis(int axisNo);
+
+    /* These are the methods that we override */
+    asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);	//ajc-osl
+    void createAsynParams(void);
 
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints);
@@ -41,6 +47,9 @@ protected:
 
     // Array of pointers to axis objects.
     Automation1MotorAxis** pAxes_;
+
+    int AUTOMATION1_C_AckAll_;
+    int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:
 
