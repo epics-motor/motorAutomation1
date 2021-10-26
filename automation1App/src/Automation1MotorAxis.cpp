@@ -147,7 +147,7 @@ asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, do
         return asynError;
     }
 
-    if (Automation1_Command_Home(pC_->controller_, 1, &axisNo_, 1))
+    if (Automation1_Command_HomeAsync(pC_->controller_, 1, &axisNo_, 1))
     {
         return asynSuccess;
     }
