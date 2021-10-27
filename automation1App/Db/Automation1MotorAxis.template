@@ -5,6 +5,7 @@
 #   $(TIMEOUT)  - asyn timeout
 #   $(ADDR)     - asyn addr for this axis
 #
+
 ##############################################################
 # Axis velocity
 ##############################################################
@@ -27,6 +28,7 @@ record(ai, "$(P)m$(M):FERROR")
     field(SCAN, "1 second")
     field(FLNK, "$(P)m$(M):FERRORMAX")
 }
+
 ##############################################################
 # Following Error (MAX)
 ##############################################################
@@ -36,4 +38,14 @@ record(calc, "$(P)m$(M):FERRORMAX")
     field(INPA, "$(P)m$(M):FERROR.VAL")
     field(INPB, "$(P)m$(M):FERRORMAX.VAL")
     field(CALC, "MAX(ABS(A),ABS(B))")
+}
+
+##############################################################
+# Following Error Max Reset
+##############################################################
+record(bo, "$(P)m$(M):FEMAXRESET")
+{
+	field(DESC, "Reset Following Error (MAX)")
+    field(VAL, "0")
+    field(OUT, "$(P)m$(M):FERRORMAX.VAL")
 }

@@ -22,7 +22,8 @@
 #define AUTOMATION1_C_VelocityString		"AUTOMATION1_C_VELOCITY"
 #define AUTOMATION1_C_FErrorString		    "AUTOMATION1_C_FERROR"
 #define AUTOMATION1_C_FErrorMaxString		"AUTOMATION1_C_FERRORMAX"
-#define NUM_AUTOMATION1_PARAMS 4
+#define AUTOMATION1_C_FEMaxResetString	    "AUTOMATION1_C_FEMAXRESET"
+#define NUM_AUTOMATION1_PARAMS 5
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -55,6 +56,7 @@ protected:
     int AUTOMATION1_C_Velocity_;
     int AUTOMATION1_C_FError_;
     int AUTOMATION1_C_FErrorMax_;
+    int AUTOMATION1_C_FEMaxReset_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:
