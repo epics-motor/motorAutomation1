@@ -36,6 +36,7 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -263,12 +264,13 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
 asynStatus Automation1MotorAxis::poll(bool* moving)
 {
     bool pollSuccessfull = true;
-    double results[5];
+    double results[6];
     int axisStatus;
     int driveStatus;
     int enabled;
     double programPositionFeedback;
     double programVelocityFeedback;
+    double positionError;
     int axisFaults;
     int done;
     
@@ -286,6 +288,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programPositionFeedback = results[2];
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
+    positionError = results[5];
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
@@ -315,6 +318,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
 
     setDoubleParam(pC_->AUTOMATION1_C_Velocity_, programVelocityFeedback);  //ajc-osl
+    setDoubleParam(pC_->AUTOMATION1_C_FError_, positionError * countsPerUnitParam);
 
     done = axisStatus & Automation1AxisStatus_MotionDone;
     setIntegerParam(pC_->motorStatusDone_, done);

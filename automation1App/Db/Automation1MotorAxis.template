@@ -15,3 +15,15 @@ record(ai, "$(P)m$(M):Velocity")
     field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_VELOCITY")
     field(SCAN, "1 second")
 }
+
+##############################################################
+# Following Error
+##############################################################
+record(ai, "$(P)m$(M):FERROR")
+{
+	field(DESC, "Following Error")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_FERROR")
+    field(SCAN, "1 second")
+    field(FLNK, "$(P)m$(M):FERRORMAX")
+}

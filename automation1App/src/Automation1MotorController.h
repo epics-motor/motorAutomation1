@@ -18,9 +18,10 @@
 #define DATA_POINTS_PER_SECOND 1000
 
 // New params added
-#define AUTOMATION1_C_AckAllString		"AUTOMATION1_C_ACKALL"	//ajc-osl
+#define AUTOMATION1_C_AckAllString		    "AUTOMATION1_C_ACKALL"	//ajc-osl
 #define AUTOMATION1_C_VelocityString		"AUTOMATION1_C_VELOCITY"
-#define NUM_AUTOMATION1_PARAMS 2
+#define AUTOMATION1_C_FErrorString		    "AUTOMATION1_C_FERROR"
+#define NUM_AUTOMATION1_PARAMS 3
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -51,6 +52,7 @@ protected:
 
     int AUTOMATION1_C_AckAll_;
     int AUTOMATION1_C_Velocity_;
+    int AUTOMATION1_C_FError_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:
