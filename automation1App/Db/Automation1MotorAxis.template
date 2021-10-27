@@ -27,3 +27,13 @@ record(ai, "$(P)m$(M):FERROR")
     field(SCAN, "1 second")
     field(FLNK, "$(P)m$(M):FERRORMAX")
 }
+##############################################################
+# Following Error (MAX)
+##############################################################
+record(calc, "$(P)m$(M):FERRORMAX")
+{
+	field(DESC, "Following Error (MAX)")
+    field(INPA, "$(P)m$(M):FERROR.VAL")
+    field(INPB, "$(P)m$(M):FERRORMAX.VAL")
+    field(CALC, "MAX(ABS(A),ABS(B))")
+}

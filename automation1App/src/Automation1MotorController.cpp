@@ -103,6 +103,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_C_AckAllString,         asynParamInt32,     &AUTOMATION1_C_AckAll_);  //ajc-osl
     createParam(AUTOMATION1_C_VelocityString,       asynParamFloat64,   &AUTOMATION1_C_Velocity_);
     createParam(AUTOMATION1_C_FErrorString,         asynParamFloat64,   &AUTOMATION1_C_FError_);
+    createParam(AUTOMATION1_C_FErrorMaxString,      asynParamFloat64,   &AUTOMATION1_C_FErrorMax_);
 }
 
 /* * Creates a new Automation1 controller object.
