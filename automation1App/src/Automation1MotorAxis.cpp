@@ -314,6 +314,8 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
 
+    setDoubleParam(pC_->AUTOMATION1_C_Velocity_, programVelocityFeedback);  //ajc-osl
+
     done = axisStatus & Automation1AxisStatus_MotionDone;
     setIntegerParam(pC_->motorStatusDone_, done);
     if (done)
@@ -376,7 +378,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
 
 skip:
 
-    setIntegerParam(pC_->motorStatusCommsError_, pollSuccessfull ? 0 : 1);
+    setIntegerParam(pC_->motorStatusCommsError_, !pollSuccessfull);
     callParamCallbacks();
     if (!pollSuccessfull)
     {

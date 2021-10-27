@@ -19,7 +19,8 @@
 
 // New params added
 #define AUTOMATION1_C_AckAllString		"AUTOMATION1_C_ACKALL"	//ajc-osl
-#define NUM_AUTOMATION1_PARAMS 1
+#define AUTOMATION1_C_VelocityString		"AUTOMATION1_C_VELOCITY"
+#define NUM_AUTOMATION1_PARAMS 2
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -49,6 +50,7 @@ protected:
     Automation1MotorAxis** pAxes_;
 
     int AUTOMATION1_C_AckAll_;
+    int AUTOMATION1_C_Velocity_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:

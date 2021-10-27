@@ -1,0 +1,17 @@
+# Macro paramters:
+#   $(P)        - PV name prefix
+#   $(M)        - PV motor name
+#   $(PORT)     - asyn port for this controller
+#   $(TIMEOUT)  - asyn timeout
+#   $(ADDR)     - asyn addr for this axis
+#
+##############################################################
+# Axis velocity
+##############################################################
+record(ai, "$(P)m$(M):Velocity")
+{
+	field(DESC, "Axis Velocity (EGU)")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_VELOCITY")
+    field(SCAN, "1 second")
+}

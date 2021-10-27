@@ -13,6 +13,7 @@ include $(TOP)/configure/CONFIG
 
 
 DB += Automation1MotorController.template
+DB += Automation1MotorAxis.template
 
 
 #----------------------------------------------------

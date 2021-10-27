@@ -33,3 +33,12 @@ pattern
 {Auto1, Automation1,           1}
 }
 
+file "$(MOTOR)/modules/motorAutomation1/automation1App/Db/Automation1MotorAxis.template"
+{
+pattern
+{     P,	M,        PORT,	ADDR,    TIMEOUT}
+{Auto1:, 	1, Automation1,	0,           	1}
+{Auto1:, 	2, Automation1,	1,           	1}
+{Auto1:, 	3, Automation1,	2,           	1}
+{Auto1:, 	4, Automation1,	3,           	1}
+}
