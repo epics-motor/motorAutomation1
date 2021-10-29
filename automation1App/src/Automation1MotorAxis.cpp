@@ -318,7 +318,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
 
     setDoubleParam(pC_->AUTOMATION1_C_Velocity_, programVelocityFeedback);  //ajc-osl
-    setDoubleParam(pC_->AUTOMATION1_C_FError_, positionError * countsPerUnitParam);
+    setDoubleParam(pC_->AUTOMATION1_C_FError_, positionError * countsPerUnitParam_);
 
     done = axisStatus & Automation1AxisStatus_MotionDone;
     setIntegerParam(pC_->motorStatusDone_, done);
