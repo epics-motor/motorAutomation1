@@ -1,0 +1,7 @@
+MOTOR = /home/user/epics/R3.15.9/support/motor-R7-2-1
+ASYN = /home/user/epics/R3.15.9/support/asyn4-36
+SNCSEQ = /home/user/epics/R3.15.9/support/seq-2.2.9
+BUSY = /home/user/epics/R3.15.9/support/busy-1-6-1
+IPAC = /home/user/epics/R3.15.9/support/ipac-R2-15
+EPICS_BASE = /home/user/epics/R3.15.9/base
+SUPPORT = /home/user/epics/R3.15.9/support
