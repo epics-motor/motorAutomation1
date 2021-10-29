@@ -9,9 +9,9 @@
 ##############################################################
 # Axis velocity
 ##############################################################
-record(ai, "$(P)m$(M):Velocity")
+record(ai, "$(P)$(M)Velocity")
 {
-	field(DESC, "Axis Velocity (EGU)")
+    field(DESC, "Axis Velocity (EGU)")
     field(DTYP, "asynFloat64")
     field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_VELOCITY")
     field(SCAN, "1 second")
@@ -20,32 +20,32 @@ record(ai, "$(P)m$(M):Velocity")
 ##############################################################
 # Following Error
 ##############################################################
-record(ai, "$(P)m$(M):FERROR")
+record(ai, "$(P)$(M)FERROR")
 {
-	field(DESC, "Following Error")
+    field(DESC, "Following Error")
     field(DTYP, "asynFloat64")
     field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_FERROR")
     field(SCAN, "1 second")
-    field(FLNK, "$(P)m$(M):FERRORMAX")
+    field(FLNK, "$(P)$(M)FERRORMAX")
 }
 
 ##############################################################
 # Following Error (MAX)
 ##############################################################
-record(calc, "$(P)m$(M):FERRORMAX")
+record(calc, "$(P)$(M)FERRORMAX")
 {
-	field(DESC, "Following Error (MAX)")
-    field(INPA, "$(P)m$(M):FERROR.VAL")
-    field(INPB, "$(P)m$(M):FERRORMAX.VAL")
+    field(DESC, "Following Error (MAX)")
+    field(INPA, "$(P)$(M)FERROR.VAL")
+    field(INPB, "$(P)$(M)FERRORMAX.VAL")
     field(CALC, "MAX(ABS(A),ABS(B))")
 }
 
 ##############################################################
 # Following Error Max Reset
 ##############################################################
-record(bo, "$(P)m$(M):FEMAXRESET")
+record(bo, "$(P)$(M)FEMAXRESET")
 {
-	field(DESC, "Reset Following Error (MAX)")
+    field(DESC, "Reset Following Error (MAX)")
     field(VAL, "0")
-    field(OUT, "$(P)m$(M):FERRORMAX.VAL")
+    field(OUT, "$(P)$(M)FERRORMAX.VAL")
 }
