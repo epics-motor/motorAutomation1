@@ -7,7 +7,7 @@
 dbLoadDatabase("../../dbd/automation1.dbd")
 automation1_registerRecordDeviceDriver(pdbbase)
 
-Automation1CreateController("Automation1", "10.2.2.167", 4, 200, 1000)
+Automation1CreateController("Automation1", "000.000.000.000", 4, 200, 1000)
 
 Automation1CreateProfile("Automation1", 2000)
 

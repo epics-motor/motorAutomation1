@@ -31,9 +31,9 @@ automation1_DBD += motorSupport.dbd
 automation1_DBD += devAutomation1Motor.dbd
 
 # automation1_LDFLAGS_Linux += -Wl,-rpath,/home/garrett/EPICS/synApps_6_1/support/motor-R7-1/bin/linux-x86_64/libautomation1compiler.so
-automation1compiler_DIR += $(MOTOR)/modules/motorAutomation1/automation1Sup/Lib
+automation1compiler_DIR += $(MOTOR_AUTOMATION1)/automation1Sup/Lib
 automation1_LIBS += automation1compiler
-automation1c_DIR += $(MOTOR)/modules/motorAutomation1/automation1Sup/Lib
+automation1c_DIR += $(MOTOR_AUTOMATION1)/automation1Sup/Lib
 automation1_LIBS += automation1c
 
 # Add all the support libraries needed by this IOC
