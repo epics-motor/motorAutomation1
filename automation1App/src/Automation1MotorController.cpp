@@ -23,6 +23,7 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+
 /** Creates a new Automation1MotorController object.
   *
   * \param[in] portName           The name of the asyn port that will be created for this driver.
@@ -149,15 +150,20 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
 {
     int function = pasynUser->reason;
     bool status = true;
+    
     if (function == AUTOMATION1_C_AckAll_) 
-      {
-	    //Call AckAll here
+    {        
 	    if(!Automation1_Command_AcknowledgeAll(controller_, 1))
 	    {
 	        logError("Could not clear faults.");
 	    }
-      }
-	  
+	 
+	    for (int i = 0; i < numAxes_; i++)
+        {
+	        (getAxis(i))->setIntegerParam(this->motorStatusProblem_,0);            // Unset "Problem" status bit on all axes.
+	    }
+    }
+	 
     //Call base class method. This will handle callCallbacks even if the function was handled here.
     status = (asynMotorController::writeInt32(pasynUser, value) == asynSuccess) && status;
     return asynSuccess;
