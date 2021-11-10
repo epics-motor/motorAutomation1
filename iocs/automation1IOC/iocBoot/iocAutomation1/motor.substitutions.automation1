@@ -3,10 +3,10 @@ file "$(MOTOR)/db/basic_asyn_motor.db"
 {
 pattern
 {P,      N,       M,        DTYP,         PORT,  ADDR,     DESC,  EGU,   DIR,   VELO,  VBAS, ACCL, BDST, BVEL, BACC, MRES, PREC,   DHLM, DLLM,  INIT}
-{Auto1:, 1, "m$(N)", "asynMotor",  Automation1,     0, "X Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
-{Auto1:, 2, "m$(N)", "asynMotor",  Automation1,     1, "Y Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
-{Auto1:, 3, "m$(N)", "asynMotor",  Automation1,     2, "Z Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
-{Auto1:, 4, "m$(N)", "asynMotor",  Automation1,     3, "U Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .001,    3,     16,    0,    ""}
+{Auto1:, 1, "m$(N)", "asynMotor",  Automation1,     0, "X Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .0000003,    3,     16,    0,    ""}
+{Auto1:, 2, "m$(N)", "asynMotor",  Automation1,     1, "Y Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .0000003,    3,     16,    0,    ""}
+{Auto1:, 3, "m$(N)", "asynMotor",  Automation1,     2, "Z Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .0000003,    3,     16,    0,    ""}
+{Auto1:, 4, "m$(N)", "asynMotor",  Automation1,     3, "U Axis",   mm,   Pos,    2.0,   0.1,   .2,    0,    1,   .2, .0000003,    3,     16,    0,    ""}
 }
 
 file "$(MOTOR)/db/profileMoveController.template"
@@ -26,4 +26,19 @@ pattern
 {Auto1:,   pm1:, 4,  Automation1,    3,    2000,      2000,  Auto1:m4,    3,       1}
 }
 
+file "$(MOTOR)/modules/motorAutomation1/automation1App/Db/Automation1MotorController.template"
+{
+pattern
+{     P,        PORT,     TIMEOUT}
+{Auto1:, Automation1,           1}
+}
 
+file "$(MOTOR)/modules/motorAutomation1/automation1App/Db/Automation1MotorAxis.template"
+{
+pattern
+{     P,	M,        PORT,	ADDR,    TIMEOUT}
+{Auto1:, 	m1:, Automation1,	0,           	1}
+{Auto1:, 	m2:, Automation1,	1,           	1}
+{Auto1:, 	m3:, Automation1,	2,           	1}
+{Auto1:, 	m4:, Automation1,	3,           	1}
+}

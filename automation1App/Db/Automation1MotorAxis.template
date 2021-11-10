@@ -1,0 +1,51 @@
+# Macro paramters:
+#   $(P)        - PV name prefix
+#   $(M)        - PV motor name
+#   $(PORT)     - asyn port for this controller
+#   $(TIMEOUT)  - asyn timeout
+#   $(ADDR)     - asyn addr for this axis
+#
+
+##############################################################
+# Axis velocity
+##############################################################
+record(ai, "$(P)$(M)Velocity")
+{
+    field(DESC, "Axis Velocity (EGU)")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_VELOCITY")
+    field(SCAN, "1 second")
+}
+
+##############################################################
+# Following Error
+##############################################################
+record(ai, "$(P)$(M)FERROR")
+{
+    field(DESC, "Following Error")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_FERROR")
+    field(SCAN, "1 second")
+    field(FLNK, "$(P)$(M)FERRORMAX")
+}
+
+##############################################################
+# Following Error (MAX)
+##############################################################
+record(calc, "$(P)$(M)FERRORMAX")
+{
+    field(DESC, "Following Error (MAX)")
+    field(INPA, "$(P)$(M)FERROR.VAL")
+    field(INPB, "$(P)$(M)FERRORMAX.VAL")
+    field(CALC, "MAX(ABS(A),ABS(B))")
+}
+
+##############################################################
+# Following Error Max Reset
+##############################################################
+record(bo, "$(P)$(M)FEMAXRESET")
+{
+    field(DESC, "Reset Following Error (MAX)")
+    field(VAL, "0")
+    field(OUT, "$(P)$(M)FERRORMAX.VAL")
+}

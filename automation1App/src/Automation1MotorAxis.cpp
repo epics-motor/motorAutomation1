@@ -36,6 +36,7 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -77,6 +78,8 @@ asynStatus Automation1MotorAxis::move(double position, int relative, double minV
     double adjustedVelocity = maxVelocity / countsPerUnitParam_;
     double adjustedPosition = position / countsPerUnitParam_;
     bool moveSuccessful;
+    
+    setIntegerParam(pC_->motorStatusProblem_,0);            // Unset "Problem" status bit. A logError call will set it.
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
                                                 1,
@@ -134,6 +137,8 @@ asynStatus Automation1MotorAxis::move(double position, int relative, double minV
 asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, double acceleration, int forwards)
 {
     double adjustedAcceleration = acceleration / countsPerUnitParam_;
+    
+    setIntegerParam(pC_->motorStatusProblem_,0);            // Unset "Problem" status bit. A logError call will set it.
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
                                                 1,
@@ -147,7 +152,7 @@ asynStatus Automation1MotorAxis::home(double minVelocity, double maxVelocity, do
         return asynError;
     }
 
-    if (Automation1_Command_Home(pC_->controller_, 1, &axisNo_, 1))
+    if (Automation1_Command_HomeAsync(pC_->controller_, 1, &axisNo_, 1))
     {
         return asynSuccess;
     }
@@ -167,6 +172,8 @@ asynStatus Automation1MotorAxis::moveVelocity(double minVelocity, double maxVelo
 {
     double adjustedAcceleration = acceleration / countsPerUnitParam_;
     double adjustedVelocity = maxVelocity / countsPerUnitParam_;
+    
+    setIntegerParam(pC_->motorStatusProblem_,0);            // Unset "Problem" status bit. A logError call will set it.
 
     if (!Automation1_Command_SetupAxisRampValue(pC_->controller_,
                                                 1,
@@ -198,6 +205,8 @@ asynStatus Automation1MotorAxis::moveVelocity(double minVelocity, double maxVelo
   */
 asynStatus Automation1MotorAxis::stop(double acceleration)
 {
+    setIntegerParam(pC_->motorStatusProblem_,0);            // Unset "Problem" status bit. A logError call will set it.
+    
     if (Automation1_Command_Abort(pC_->controller_, &axisNo_, 1))
     {
         return asynSuccess;
@@ -215,6 +224,7 @@ asynStatus Automation1MotorAxis::stop(double acceleration)
 asynStatus Automation1MotorAxis::setPosition(double position)
 {
     double adjustedPosition = position / countsPerUnitParam_;
+    setIntegerParam(pC_->motorStatusProblem_,0);            // Unset "Problem" status bit. A logError call will set it.
 
     if (Automation1_Command_PositionOffsetSet(pC_->controller_, 1, &axisNo_, 1, &adjustedPosition, 1))
     {
@@ -248,6 +258,7 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
             return asynError;
         }
     }
+    setIntegerParam(pC_->motorStatusProblem_,0);	//Clear problem bit if it was set due to "axis not enabled"
     return asynSuccess;
 }
 
@@ -262,12 +273,13 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
 asynStatus Automation1MotorAxis::poll(bool* moving)
 {
     bool pollSuccessfull = true;
-    double results[5];
+    double results[6];
     int axisStatus;
     int driveStatus;
     int enabled;
     double programPositionFeedback;
     double programVelocityFeedback;
+    double positionError;
     int axisFaults;
     int done;
     
@@ -285,6 +297,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programPositionFeedback = results[2];
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
+    positionError = results[5];
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
@@ -312,6 +325,9 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     setIntegerParam(pC_->motorStatusPowerOn_, enabled);
     setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
+
+    setDoubleParam(pC_->AUTOMATION1_C_Velocity_, programVelocityFeedback);  //ajc-osl
+    setDoubleParam(pC_->AUTOMATION1_C_FError_, positionError * countsPerUnitParam_);
 
     done = axisStatus & Automation1AxisStatus_MotionDone;
     setIntegerParam(pC_->motorStatusDone_, done);
@@ -342,6 +358,8 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         }
     }
 
+    if( axisFaults > 0) setIntegerParam(pC_->motorStatusProblem_,1);            // Set "Problem" status bit if there are any axis faults.
+
     if ((axisFaults & Automation1AxisFault_CwEndOfTravelLimitFault) ||
         (axisFaults & Automation1AxisFault_CwSoftwareLimitFault))
     {
@@ -371,11 +389,11 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
         setIntegerParam(pC_->motorStatusFollowingError_, 0);
     }
 
-    setIntegerParam(pC_->motorStatusAtHome_, axisStatus & Automation1AxisStatus_Homed);
+    setIntegerParam(pC_->motorStatusHomed_, axisStatus & Automation1AxisStatus_Homed);
 
 skip:
 
-    setIntegerParam(pC_->motorStatusCommsError_, pollSuccessfull ? 0 : 1);
+    setIntegerParam(pC_->motorStatusCommsError_, !pollSuccessfull);
     callParamCallbacks();
     if (!pollSuccessfull)
     {
@@ -422,6 +440,8 @@ void Automation1MotorAxis::logError(const char* driverMessage)
     int errorCode = Automation1_GetLastError();
     char errorMessage[1024];
     Automation1_GetLastErrorMessage(errorMessage, 1024);
+    
+    setIntegerParam(pC_->motorStatusProblem_,1);            // Set "Problem" status bit for any failed API call including when a disabled axis is commanded.
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
               "Driver: Automation1. Function Message: %s. Axis: %d. API Error Code: %d. API Error Message: %s\n",

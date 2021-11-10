@@ -1,0 +1,14 @@
+# Macro paramters:
+#   $(P)        - PV name prefix
+#   $(PORT)     - asyn port for this controller
+#   $(TIMEOUT)  - asyn timeout
+#
+##############################################################
+# Acknowledge and clear faults on all axes and tasks.
+##############################################################
+record(bo, "$(P)AckAll")
+{
+    field(DESC, "Clear axis and task faults")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_C_ACKALL")
+}

@@ -23,6 +23,7 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+
 /** Creates a new Automation1MotorController object.
   *
   * \param[in] portName           The name of the asyn port that will be created for this driver.
@@ -40,6 +41,8 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         0, 0)    // Default priority and stack size
 {
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
+
+    createAsynParams();
 
     // This function allocates a controller handle and gives a pointer to it.  It returns
     // true on success.
@@ -96,6 +99,13 @@ Automation1MotorController::~Automation1MotorController()
     Automation1_Disconnect(controller_);
 }
 
+void Automation1MotorController::createAsynParams(void) 
+{
+    createParam(AUTOMATION1_C_AckAllString,         asynParamInt32,     &AUTOMATION1_C_AckAll_);  //ajc-osl
+    createParam(AUTOMATION1_C_VelocityString,       asynParamFloat64,   &AUTOMATION1_C_Velocity_);
+    createParam(AUTOMATION1_C_FErrorString,         asynParamFloat64,   &AUTOMATION1_C_FError_);
+}
+
 /* * Creates a new Automation1 controller object.
 * Configuration command, called directly or from iocsh.
     *
@@ -111,7 +121,7 @@ extern "C" int Automation1CreateController(const char* portName, const char* hos
     return(asynSuccess);
 }
 
-/*  * Reports on status of the Autoamtion1 controller.
+/*  * Reports on status of the Automation1 controller.
     *
     * \param[in] fp The file pointer on which report information will be written
     * \param[in] level The level of report detail desired
@@ -133,6 +143,30 @@ void Automation1MotorController::report(FILE* fp, int level)
 Automation1MotorAxis* Automation1MotorController::getAxis(asynUser* pasynUser)
 {
     return static_cast<Automation1MotorAxis*>(asynMotorController::getAxis(pasynUser));
+}
+
+
+asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt32 value)
+{
+    int function = pasynUser->reason;
+    bool status = true;
+    
+    if (function == AUTOMATION1_C_AckAll_) 
+    {        
+	    if(!Automation1_Command_AcknowledgeAll(controller_, 1))
+	    {
+	        logError("Could not clear faults.");
+	    }
+	 
+	    for (int i = 0; i < numAxes_; i++)
+        {
+	        (getAxis(i))->setIntegerParam(this->motorStatusProblem_,0);            // Unset "Problem" status bit on all axes.
+	    }
+    }
+	 
+    //Call base class method. This will handle callCallbacks even if the function was handled here.
+    status = (asynMotorController::writeInt32(pasynUser, value) == asynSuccess) && status;
+    return asynSuccess;
 }
 
 /*  * Returns a pointer to an Automation1 axis object.
