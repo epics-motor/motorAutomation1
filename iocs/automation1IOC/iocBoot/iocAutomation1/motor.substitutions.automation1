@@ -26,14 +26,14 @@ pattern
 {Auto1:,   pm1:, 4,  Automation1,    3,    2000,      2000,  Auto1:m4,    3,       1}
 }
 
-file "$(MOTOR)/modules/motorAutomation1/automation1App/Db/Automation1MotorController.template"
+file "$(TOP)/db/Automation1MotorController.template"
 {
 pattern
 {     P,        PORT,     TIMEOUT}
 {Auto1:, Automation1,           1}
 }
 
-file "$(MOTOR)/modules/motorAutomation1/automation1App/Db/Automation1MotorAxis.template"
+file "$(TOP)/db/Automation1MotorAxis.template"
 {
 pattern
 {     P,	M,        PORT,	ADDR,    TIMEOUT}
