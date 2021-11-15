@@ -155,7 +155,7 @@ asynStatus Automation1MotorController::writeOctet(asynUser *pasynUser, const cha
     {
         if(!Automation1_Command_Execute(this->controller_, 1, value))
         {
-            logError("Could not execute requested command.");
+            logError("Could not execute requested command. Commands are limited to 40 characters.");
         }
     }
 
