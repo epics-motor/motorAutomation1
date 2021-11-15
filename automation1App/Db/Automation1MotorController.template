@@ -12,3 +12,15 @@ record(bo, "$(P)AckAll")
     field(DTYP, "asynInt32")
     field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_C_ACKALL")
 }
+
+##############################################################
+# Forwards a string directly to the controller for execution.
+##############################################################
+record(waveform, "$(P)ExecuteCommand")
+{
+    field(DESC, "Execute an AeroScript command")
+    field(DTYP, "asynOctetWrite")
+    field(FTVL, "CHAR")
+    field(NELM, "256")
+    field(INP,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_C_EXECUTE_COMMAND")
+}
