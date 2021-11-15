@@ -40,6 +40,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         1, // autoconnect
         0, 0)    // Default priority and stack size
 {
+    dataCollectionConfig_ = NULL;
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
     createAsynParams();
