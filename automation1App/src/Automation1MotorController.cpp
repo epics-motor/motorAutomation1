@@ -104,6 +104,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_C_AckAllString,         asynParamInt32,     &AUTOMATION1_C_AckAll_);  //ajc-osl
     createParam(AUTOMATION1_C_VelocityString,       asynParamFloat64,   &AUTOMATION1_C_Velocity_);
     createParam(AUTOMATION1_C_FErrorString,         asynParamFloat64,   &AUTOMATION1_C_FError_);
+    createParam(AUTOMATION1_C_ExecuteCommandString, asynParamOctet,     &AUTOMATION1_C_ExecuteCommand_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -145,6 +146,23 @@ Automation1MotorAxis* Automation1MotorController::getAxis(asynUser* pasynUser)
     return static_cast<Automation1MotorAxis*>(asynMotorController::getAxis(pasynUser));
 }
 
+
+asynStatus Automation1MotorController::writeOctet(asynUser *pasynUser, const char *value, size_t maxChars, size_t *nActual)
+{
+    int function = pasynUser->reason;
+    
+    if(function == AUTOMATION1_C_ExecuteCommand_)
+    {
+        if(!Automation1_Command_Execute(this->controller_, 1, value))
+        {
+            logError("Could not execute requested command.");
+        }
+    }
+
+    // Call base method.
+    asynPortDriver::writeOctet(pasynUser, value, maxChars, nActual);
+    return asynSuccess;
+}
 
 asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt32 value)
 {
