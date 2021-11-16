@@ -21,7 +21,8 @@
 #define AUTOMATION1_C_AckAllString          "AUTOMATION1_C_ACKALL"	//ajc-osl
 #define AUTOMATION1_C_VelocityString        "AUTOMATION1_C_VELOCITY"
 #define AUTOMATION1_C_FErrorString          "AUTOMATION1_C_FERROR"
-#define NUM_AUTOMATION1_PARAMS 3
+#define AUTOMATION1_C_ExecuteCommandString  "AUTOMATION1_C_EXECUTE_COMMAND"
+#define NUM_AUTOMATION1_PARAMS 4
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -36,6 +37,7 @@ public:
 
     /* These are the methods that we override */
     asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);	//ajc-osl
+    asynStatus writeOctet(asynUser *pasynUser, const char *value, size_t maxChars, size_t *nActual);
     void createAsynParams(void);
 
     // These are functions for profile moves.
@@ -53,6 +55,7 @@ protected:
     int AUTOMATION1_C_AckAll_;
     int AUTOMATION1_C_Velocity_;
     int AUTOMATION1_C_FError_;
+    int AUTOMATION1_C_ExecuteCommand_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:
