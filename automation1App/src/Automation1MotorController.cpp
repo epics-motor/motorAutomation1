@@ -597,10 +597,13 @@ asynStatus Automation1MotorController::poll()
     Automation1TaskStatus taskStatusArray[PROFILE_MOVE_TASK_INDEX + 1];
     Automation1TaskStatus* taskStatus;
     int executeState = PROFILE_EXECUTE_DONE;
+    int numPoints;
+    int currentPoint;
     bool pollOk = true;
 
     if (!dataCollectionConfig_) goto done;
 
+    getIntegerParam(profileNumPoints_, &numPoints);
     getIntegerParam(profileExecuteState_, &executeState);
     if (executeState == PROFILE_EXECUTE_EXECUTING)
     {
@@ -618,7 +621,12 @@ asynStatus Automation1MotorController::poll()
         }
         taskStatus = &taskStatusArray[PROFILE_MOVE_TASK_INDEX];
 
-        setIntegerParam(profileCurrentPoint_, dataCollectionStatus.NumberOfRetrievedPoints);
+        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints;
+        if (currentPoint > numPoints)
+        {
+            currentPoint = numPoints;
+        }
+        setIntegerParam(profileCurrentPoint_, currentPoint);
 
         if (taskStatus->TaskState != Automation1TaskState_ProgramRunning) {
             setIntegerParam(profileExecute_, 0);
