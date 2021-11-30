@@ -403,35 +403,6 @@ skip:
     return pollSuccessfull ? asynSuccess : asynError;
 }
 
-/** Function to define the motor positions for a profile move.
-  * This function calls the base class method, then converts the positions to
-  * controller units.
-  * \param[in] positions Array of profile positions for this axis in user units.
-  * \param[in] numPoints The number of positions in the array.
-  */
-asynStatus Automation1MotorAxis::defineProfile(double* positions, size_t numPoints)
-{
-    double resolution;
-    pC_->getDoubleParam(axisNo_, pC_->motorRecResolution_, &resolution);
-    // Call the base class function (converts from EGU to steps)
-    asynStatus status = asynMotorAxis::defineProfile(positions, numPoints);
-    if (status) return status;
-
-    // Convert from steps to EGU.
-    for (size_t i = 0; i < numPoints; i++)
-    {
-        profilePositions_[i] = profilePositions_[i] * resolution;
-    }
-    return asynSuccess;
-}
-
-asynStatus Automation1MotorAxis::readbackProfile()
-{
-    // Call the base class method
-    asynMotorAxis::readbackProfile();
-    return asynSuccess;
-}
-
 /** Logs an driver error and error details from the C API.  Made to reduce duplicate code.
   * \param[in] driverMessage A char array meant to convey where in execution the error occured.
 */

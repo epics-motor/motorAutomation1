@@ -50,7 +50,6 @@ public:
     asynStatus readbackProfile();
 
     asynStatus poll() override;
-
 protected:
 
     // Array of pointers to axis objects.
@@ -74,10 +73,6 @@ private:
 
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
-
-    // The resolution of the motor axes. Needed for profile motion 
-    // because Automation1 works in EGU, not steps.
-    std::vector<double> profileAxesResolutions_;
 
     // Convience wrapper for reporting Automation1 API errors
     void logApiError(const char* driverMessage) {

@@ -28,10 +28,6 @@ public:
     asynStatus setPosition(double position);
     asynStatus setClosedLoop(bool closedLoop);
 
-    // Needed for profile motion.
-    asynStatus defineProfile(double* positions, size_t numPoints);
-    asynStatus readbackProfile();
-
 private:
     // Pointer to asynMotorController to which the axis belongs.
     Automation1MotorController* pC_;
