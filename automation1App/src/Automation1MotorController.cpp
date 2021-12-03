@@ -49,25 +49,12 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     // true on success.
     if (!Automation1_ConnectWithHost(hostName, &(controller_)))
     {
-        asynPrint(pasynUserSelf, 
-                  ASYN_TRACE_ERROR,
-            "Could not connect to Automation1 controller.\n");
-        int errorCode = Automation1_GetLastError();
-        char errorMessage[1024];
-        char* pErrorMessage = errorMessage;
-        Automation1_GetLastErrorMessage(pErrorMessage, 1024);
-        asynPrint(pasynUserSelf, 
-                  ASYN_TRACE_ERROR,
-                  "Driver: Automation1. Function Message: Could not connect to Automation1 controller. API Error Code: %d\n. API Error Message: %s\n", 
-                  errorCode, 
-                  errorMessage);
+        logApiError("Could not connect to Automation1 controller");
     }
     bool isRunning = false;
     if (!Automation1_Controller_IsRunning(controller_, &isRunning))
     {
-        asynPrint(pasynUserSelf, 
-                  ASYN_TRACE_ERROR,
-                  "Could not determine if Automation1 controller is running.\n");
+        logApiError("Could not determine if Automation1 controller is running");
     }
     // This command starts the controller if it is not already running.  
     // Note: If Program Automation is enabled, this means that programs 
@@ -76,9 +63,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     {
         if (!Automation1_Controller_Start(controller_))
         {
-            asynPrint(pasynUserSelf, 
-                      ASYN_TRACE_ERROR,
-                      "Could not start Automation1 controller.\n");
+            logApiError("Could not start Automation1 controller");
         }
     }
 
@@ -210,8 +195,6 @@ asynStatus Automation1MotorController::buildProfile()
     int numPoints;
     int numPulses;
     int timeMode;
-    double profileTime;
-    double pulseTime;
     int buildStatus;
     int moveMode;
     int numUsedAxes;
@@ -221,6 +204,7 @@ asynStatus Automation1MotorController::buildProfile()
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
     setIntegerParam(profileBuildStatus_, PROFILE_STATUS_UNDEFINED);
+    setStringParam(profileBuildMessage_, "");
     getIntegerParam(profileNumPoints_, &numPoints);
     getIntegerParam(profileNumPulses_, &numPulses);
     getIntegerParam(profileTimeMode_, &timeMode);
@@ -255,9 +239,7 @@ asynStatus Automation1MotorController::buildProfile()
     if (timeMode != PROFILE_TIME_MODE_FIXED)
     {
         buildOK = false;
-        asynPrint(pasynUserSelf, 
-                  ASYN_TRACE_ERROR, 
-                  "Currently the Automation1 EPICS offering only supports fixed-time, 1 ms profile points. Time mode is not currently set to fixed.");
+        logError(profileBuildMessage_ , "Automation1 driver only supports fixed-time, 1 ms profiles. Time mode is not fixed.");
         goto done;
     }
     
@@ -266,11 +248,9 @@ asynStatus Automation1MotorController::buildProfile()
         if (profileTimes_[i] != 0.001)
         {
             buildOK = false;
-            asynPrint(pasynUserSelf, 
-                      ASYN_TRACE_ERROR, 
-                      "Currently the Automation1 EPICS offering only supports fixed-time, 1 ms profile points. Index %d of the time array has a time of %f", 
-                      i, 
-                      profileTimes_[i]);
+            logError(profileBuildMessage_, "Automation1 driver only supports fixed-time, 1 ms profiles. Index %d of the time array has a time of %f",
+                     i,
+                     profileTimes_[i]);
             goto done;
         }
     }
@@ -282,7 +262,7 @@ asynStatus Automation1MotorController::buildProfile()
         if (!Automation1_DataCollectionConfig_Create(Automation1DataCollectionFrequency_1kHz, numPulses, &dataCollectionConfig_))
         {
             buildOK = false;
-            logError("Could not create dataCollectionConfig.");
+            logApiError(profileBuildMessage_, "Could not create dataCollectionConfig");
             goto done;
         }
     }
@@ -291,7 +271,7 @@ asynStatus Automation1MotorController::buildProfile()
     if (!Automation1_DataCollectionConfig_ClearAllDataSignals(dataCollectionConfig_))
     {
         buildOK = false;
-        logError("Could not clear dataCollectionConfig.");
+        logApiError(profileBuildMessage_, "Could not clear dataCollectionConfig");
         goto done;
     }
 
@@ -304,7 +284,7 @@ asynStatus Automation1MotorController::buildProfile()
                                                                 0))
         {
             buildOK = false;
-            logError("Could not add axis signal to dataCollectionConfig.");
+            logApiError(profileBuildMessage_, "Could not add axis signal to dataCollectionConfig.");
             goto done;
         }
 
@@ -314,7 +294,7 @@ asynStatus Automation1MotorController::buildProfile()
                                                                 0))
         {
             buildOK = false;
-            logError("Could not add axis signal to dataCollectionConfig.");
+            logApiError(profileBuildMessage_, "Could not add axis signal to dataCollectionConfig.");
             goto done;
         }
     }
@@ -411,33 +391,32 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.size()))
     {
         buildOK = false;
-        logError("Could not write profile file to controller.");
+        logApiError(profileBuildMessage_, "Could not write profile file to controller");
         goto done;
     }
+
+    setIntegerParam(profileCurrentPoint_, 0);
 
 done:
 
     buildStatus = buildOK ? PROFILE_STATUS_SUCCESS : PROFILE_STATUS_FAILURE;
     setIntegerParam(profileBuildStatus_, buildStatus);
-    if (buildStatus != PROFILE_STATUS_SUCCESS) {
-        asynPrint(pasynUserSelf, 
-                  ASYN_TRACE_ERROR,
-                  "profile build failed\n");
-    }
+
     // Clear build command.  This is a "busy" record, don't want to do this until build is complete.
     setIntegerParam(profileBuild_, 0);
     setIntegerParam(profileBuildState_, PROFILE_BUILD_DONE);
     callParamCallbacks();
+
     return buildOK ? asynSuccess : asynError;
 }
 
 asynStatus Automation1MotorController::executeProfile()
 {
     bool executeOK = true;
-    int executeStatus;
 
     setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_MOVE_START);
     setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_UNDEFINED);
+    setStringParam(profileExecuteMessage_, "");
     callParamCallbacks();
     setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_EXECUTING);
 
@@ -449,33 +428,26 @@ asynStatus Automation1MotorController::executeProfile()
     Automation1_DataCollection_Stop(controller_);
 
     // This compiles and runs the Aeroscript file on the controller. Note that this function returns
-    // after the program is compiled and started, it does not wait for the program to finish.
+    // after the program is started, it does not wait for the program to finish.
     if (!Automation1_Task_ProgramRun(controller_,
                                      PROFILE_MOVE_TASK_INDEX,
                                      "epics_profile_move.ascript"))
     {
         executeOK = false;
-        logError("Failed to compile and run profile move file.");
+        logApiError(profileExecuteMessage_, "Failed to run profile move file");
+        goto done;
     }
 
 done:
 
-    // Check for task 2 status, program running, program complete (task status enum).
-    if (executeOK)
+    // If we didn't fail to start the program, we let the polling thread
+    // update profileExecuteState_ when we are done.
+    if (!executeOK)
     {
-        executeStatus = PROFILE_STATUS_SUCCESS;
+        setIntegerParam(profileExecute_, 0);
+        setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_FAILURE);
+        setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
     }
-    else
-    {
-        executeStatus = PROFILE_STATUS_FAILURE;
-    }
-    executeStatus = executeOK ? PROFILE_STATUS_SUCCESS : PROFILE_STATUS_FAILURE;
-    setIntegerParam(profileExecuteStatus_, executeStatus);
-    setIntegerParam(profileExecute_, 0);
-    // Note: This state is not exactly accurate.  We may need to run this function on 
-    //       a separate EPICS thread and check the Automation1 task state to see if 
-    //       motion has been completed.
-    setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
     callParamCallbacks();
 
     return executeOK ? asynSuccess : asynError;
@@ -487,7 +459,7 @@ asynStatus Automation1MotorController::abortProfile()
                                       PROFILE_MOVE_TASK_INDEX,
                                       PROFILE_MOVE_ABORT_TIMEOUT))
     {
-        logError("Automation1 profile move failed to abort.");
+        logApiError("Automation1 profile move failed to abort");
         return asynError;
     }
     return asynSuccess;
@@ -503,14 +475,17 @@ asynStatus Automation1MotorController::readbackProfile()
     int numProfileAxes;
     int allResultsLength;
     int allResultsSize;
-    double* allResults;
-    int readPoints;
+    double* allResults = NULL;
+    int readPoints = 0;
     int signalResultsSize;
-    double* signalResults;
+    double* signalResults = NULL;
 
     setIntegerParam(profileReadbackState_, PROFILE_READBACK_BUSY);
     setIntegerParam(profileReadbackStatus_, PROFILE_STATUS_UNDEFINED);
+    setStringParam(profileReadbackMessage_, "");
     callParamCallbacks();
+
+    numProfileAxes = profileAxes_.size();
 
     // Continuously poll the controller until data collection is done.
     Automation1_DataCollection_GetStatus(controller_, &dataCollectionStatus);
@@ -519,20 +494,19 @@ asynStatus Automation1MotorController::readbackProfile()
         if (!Automation1_DataCollection_GetStatus(controller_, &dataCollectionStatus))
         {
             readbackOK = false;
-            logError("Failed to get data collection status.");
+            logApiError(profileReadbackMessage_, "Failed to get data collection status");
             goto done;
         }
     }
 
     readPoints = dataCollectionStatus.NumberOfRetrievedPoints;
-    numProfileAxes = profileAxes_.size();
     allResultsLength = readPoints * profileAxes_.size() * 2;
     allResultsSize = allResultsLength * sizeof(double);
     allResults = (double*)malloc(allResultsSize);
 
-    if (readPoints > maxProfilePoints_)
+    if (readPoints > static_cast<int>(maxProfilePoints_))
     {
-        readPoints = maxProfilePoints_;
+        readPoints = static_cast<int>(maxProfilePoints_);
     }
     signalResultsSize = readPoints * sizeof(double);
     signalResults = (double*)malloc(signalResultsSize);
@@ -549,7 +523,7 @@ asynStatus Automation1MotorController::readbackProfile()
                                                allResultsLength))
     {
         readbackOK = false;
-        logError("Failed to get data collection results.");
+        logApiError(profileReadbackMessage_, "Failed to get data collection results");
         goto done;
     }
 
@@ -566,7 +540,7 @@ asynStatus Automation1MotorController::readbackProfile()
                                                        readPoints))
         {
             readbackOK = false;
-            logError("Failed to parse program position feedback results.");
+            logApiError("Failed to parse program position feedback results");
             goto done;
         }
         // Need to convert the readback into steps for the record.
@@ -586,7 +560,7 @@ asynStatus Automation1MotorController::readbackProfile()
                                                        readPoints))
         {
             readbackOK = false;
-            logError("Failed to parse position error results.");
+            logApiError(profileReadbackMessage_, "Failed to parse position error results");
             goto done;
         }
         for (j = 0; j < readPoints; j++)
@@ -607,9 +581,10 @@ done:
         pAxes_[i]->readbackProfile();
     }
 
-    // Clear readback command.  This is a "busy" record, don't want to do this until readback is complete.
     readbackStatus = readbackOK ? PROFILE_STATUS_SUCCESS : PROFILE_STATUS_FAILURE;
     setIntegerParam(profileReadbackStatus_, readbackStatus);
+
+    // Clear readback command.  This is a "busy" record, don't want to do this until readback is complete.
     setIntegerParam(profileReadback_, 0);
     setIntegerParam(profileReadbackState_, PROFILE_READBACK_DONE);
     callParamCallbacks();
@@ -617,24 +592,96 @@ done:
     return readbackOK ? asynSuccess : asynError;
 }
 
+asynStatus Automation1MotorController::poll()
+{
+    Automation1DataCollectionStatus dataCollectionStatus;
+    Automation1TaskStatus taskStatusArray[PROFILE_MOVE_TASK_INDEX + 1];
+    Automation1TaskStatus* taskStatus;
+    int executeState = PROFILE_EXECUTE_DONE;
+    int numPoints;
+    int currentPoint;
+    bool pollOk = true;
+
+    if (!dataCollectionConfig_) goto done;
+
+    getIntegerParam(profileNumPoints_, &numPoints);
+    getIntegerParam(profileExecuteState_, &executeState);
+    if (executeState == PROFILE_EXECUTE_EXECUTING)
+    {
+        if (!Automation1_DataCollection_GetStatus(controller_, &dataCollectionStatus))
+        {
+            logApiError(profileExecuteMessage_, "Failed to get data collection status");
+            pollOk = false;
+            goto done;
+        }
+
+        if (!Automation1_Task_GetStatus(controller_, taskStatusArray, PROFILE_MOVE_TASK_INDEX + 1)) {
+            logApiError("Failed to get task status");
+            pollOk = false;
+            goto done;
+        }
+        taskStatus = &taskStatusArray[PROFILE_MOVE_TASK_INDEX];
+
+        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints;
+        if (currentPoint > numPoints)
+        {
+            currentPoint = numPoints;
+        }
+        setIntegerParam(profileCurrentPoint_, currentPoint);
+
+        if (taskStatus->TaskState != Automation1TaskState_ProgramRunning) {
+            setIntegerParam(profileExecute_, 0);
+            setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
+
+            if (taskStatus->Error != 0)
+            {
+                logError(profileExecuteMessage_, "Profile run failed. Task Error: (%d) \"%s\"",
+                         taskStatus->Error,
+                         taskStatus->ErrorMessage);
+                setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_FAILURE);
+                goto done;
+            }
+
+            setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_SUCCESS);
+        }
+    }
+
+done:
+    if (executeState == PROFILE_EXECUTE_EXECUTING)
+    {
+        callParamCallbacks();
+    }
+
+    return pollOk ? asynSuccess : asynError;
+}
+
+
 /** Logs an driver error and error details from the C API.  Made to reduce duplicate code.
   * \param[in] driverMessage A char array meant to convey where in execution the error occured.
 */
-void Automation1MotorController::logError(const char* driverMessage)
+void Automation1MotorController::logApiError(int messageIndex, const char* driverMessage)
 {
     int errorCode = Automation1_GetLastError();
     char errorMessage[1024];
     Automation1_GetLastErrorMessage(errorMessage, 1024);
 
-    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-        "Driver: Automation1. Function Message: %s. API Error Code: %d. API Error Message: %s\n",
-        driverMessage,
-        errorCode,
-        errorMessage);
-
-    return;
+    logError(messageIndex, "%s. API Error: %d \"%s\"",
+            driverMessage,
+            errorCode,
+            errorMessage);
 }
 
+void Automation1MotorController::logErrorV(int messageIndex, const char* fmt, std::va_list args)
+{
+
+    char buffer[4096];
+    vsnprintf(buffer, 4096, fmt, args);
+
+    if (messageIndex != -1) {
+        setStringParam(messageIndex, buffer);
+    }
+    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR, "[Automation1 Driver] %s\n", buffer);
+}
 
 asynStatus Automation1CreateProfile(const char *portName, int maxPoints)
 {

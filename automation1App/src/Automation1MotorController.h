@@ -12,6 +12,8 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+#include <cstdarg>
+
 #define MAX_AUTOMATION1_AXES 32
 #define PROFILE_MOVE_TASK_INDEX 2
 #define PROFILE_MOVE_ABORT_TIMEOUT 1000
@@ -47,6 +49,8 @@ public:
     asynStatus abortProfile();
     asynStatus readbackProfile();
 
+    asynStatus poll() override;
+
 protected:
 
     // Array of pointers to axis objects.
@@ -75,10 +79,28 @@ private:
     // because Automation1 works in EGU, not steps.
     std::vector<double> profileAxesResolutions_;
 
-    // Automation1 error codes and messages must be acquired through
-    // calls to the C API. To avoid duplicate code, we wrap calls 
-    // to those functions and to asynPrint in this function.
-    void logError(const char* driverMessage);
+    // Convience wrapper for reporting Automation1 API errors
+    void logApiError(const char* driverMessage) {
+        logApiError(-1, driverMessage);
+    }
+    void logApiError(int messageIndex, const char* driverMessage);
+
+    void logError(const char* fmt, ...) {
+        std::va_list args;
+        va_start(args, fmt);
+        logErrorV(-1, fmt, args);
+        va_end(args);
+    }
+
+    void logError(int messageIndex, const char* fmt, ...) {
+        std::va_list args;
+        va_start(args, fmt);
+        logErrorV(messageIndex, fmt, args);
+        va_end(args);
+    }
+
+    // Log an error with asyn and post a message PV if messageIndex != -1
+    void logErrorV(int messageIndex, const char* fmt, std::va_list agrs);
 
     friend class Automation1MotorAxis;
 };
