@@ -198,9 +198,9 @@ asynStatus Automation1MotorController::buildProfile()
     int buildStatus;
     int moveMode;
     int numUsedAxes;
-    double resolution;
     int useAxis;
     std::string profileMoveFileContents;
+    Automation1MotorAxis* axis;
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
     setIntegerParam(profileBuildStatus_, PROFILE_STATUS_UNDEFINED);
@@ -217,21 +217,16 @@ asynStatus Automation1MotorController::buildProfile()
     // To avoid needless iteration, we make a vector of the axes in use during profile motion.
     // We also query each axis's resolution as it is needed for multiple operations.
     profileAxes_.clear();
-    profileAxesResolutions_.clear();
     profileAxes_.reserve(numAxes_);
-    profileAxesResolutions_.reserve(numAxes_);
     for (i = 0; i < numAxes_; i++)
     {
         getIntegerParam(i, profileUseAxis_, &useAxis);
         if (useAxis)
         {
             profileAxes_.push_back(i);
-            getDoubleParam(i, motorRecResolution_, &resolution);
-            profileAxesResolutions_.push_back(resolution);
         }
     }
     profileAxes_.shrink_to_fit();
-    profileAxesResolutions_.shrink_to_fit();
     numUsedAxes = profileAxes_.size();
 
     // For the initial release, it was decided to limit profile motion to 1 ms increments in order
@@ -361,7 +356,8 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("MovePt($axes, [");
         for (j = 0; j < numUsedAxes; j++)
         {
-            profileMoveFileContents.append(std::to_string(pAxes_[profileAxes_[j]]->profilePositions_[i] * profileAxesResolutions_[j]));
+            axis = pAxes_[profileAxes_[j]];
+            profileMoveFileContents.append(std::to_string(axis->profilePositions_[i] / axis->countsPerUnitParam_));
             if (j != numUsedAxes - 1)
             {
                 profileMoveFileContents.append(",");
@@ -543,10 +539,10 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError("Failed to parse program position feedback results");
             goto done;
         }
-        // Need to convert the readback into steps for the record.
+
         for (j = 0; j < readPoints; j++)
         {
-            signalResults[j] = signalResults[j] / profileAxesResolutions_[i];
+            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
         }
         memcpy(pAxes_[i]->profileReadbacks_, signalResults, signalResultsSize);
 
@@ -563,9 +559,10 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError(profileReadbackMessage_, "Failed to parse position error results");
             goto done;
         }
+
         for (j = 0; j < readPoints; j++)
         {
-            signalResults[j] = signalResults[j] / profileAxesResolutions_[i];
+            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
         }
         memcpy(pAxes_[i]->profileFollowingErrors_, signalResults, signalResultsSize);
     }
