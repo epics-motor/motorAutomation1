@@ -10,9 +10,14 @@ LIBRARY_IOC = Automation1
 SRCS += Automation1MotorAxis.cpp
 SRCS += Automation1MotorController.cpp
 
-automation1compiler_DIR += $(MOTOR_AUTOMATION1)/automation1Sup/Lib
+ifdef MOTOR_AUTOMATION1
+automation1compiler_DIR += $(MOTOR_AUTOMATION1)/bin/$(EPICS_HOST_ARCH)
+automation1c_DIR += $(MOTOR_AUTOMATION1)/bin/$(EPICS_HOST_ARCH)
+else
+automation1compiler_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
+automation1c_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
+endif
 Automation1_LIBS += automation1compiler
-automation1c_DIR += $(MOTOR_AUTOMATION1)/automation1Sup/Lib
 Automation1_LIBS += automation1c
 
 DBD += devAutomation1Motor.dbd
