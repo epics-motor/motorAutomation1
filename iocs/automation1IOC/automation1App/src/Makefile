@@ -11,6 +11,9 @@ include $(TOP)/configure/CONFIG
 #=============================
 # Build the IOC application
 
+# Aerotech only provides shared libraries
+STATIC_BUILD = NO
+
 PROD_IOC = automation1
 # automation1.dbd will be created and installed
 DBD += automation1.dbd
@@ -38,8 +41,8 @@ else
 automation1compiler_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 automation1c_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 endif
-Automation1_LIBS += automation1compiler
-Automation1_LIBS += automation1c
+automation1_LIBS += automation1compiler
+automation1_LIBS += automation1c
 
 # Add all the support libraries needed by this IOC
 automation1_LIBS += Automation1
