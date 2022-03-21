@@ -41,8 +41,15 @@ else
 automation1compiler_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 automation1c_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 endif
-automation1_LIBS += automation1compiler
-automation1_LIBS += automation1c
+
+ifeq (win32-x86, $(findstring win32-x86, $(T_A)))
+	PROD_LIBS += automation1c
+else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
+	PROD_LIBS += automation1c64
+else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
+	PROD_LIBS += automation1compiler
+	PROD_LIBS += automation1c
+endif
 
 # Add all the support libraries needed by this IOC
 automation1_LIBS += Automation1
