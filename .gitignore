@@ -17,5 +17,6 @@ auto_settings.sav*
 auto_positions.sav*
 *.local
 automation1Sup/Include/
-automation1Sup/Lib/
+automation1Sup/Library/
+automation1Sup/Readme.txt
 
