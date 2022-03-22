@@ -5,6 +5,10 @@ include $(TOP)/configure/CONFIG
 # The following are used for debugging messages.
 USR_CXXFLAGS += -DDEBUG
 
+ifeq (win32-x86-static, $(findstring win32-x86, $(T_A)))
+USR_LDFLAGS += /NODEFAULTLIB:MSVCRT
+endif
+
 LIBRARY_IOC = Automation1
 
 SRCS += Automation1MotorAxis.cpp

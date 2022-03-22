@@ -11,8 +11,10 @@ include $(TOP)/configure/CONFIG
 #=============================
 # Build the IOC application
 
-# Aerotech only provides shared libraries
+ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
+# Workaround for static build problems on Linux
 STATIC_BUILD = NO
+endif
 
 PROD_IOC = automation1
 # automation1.dbd will be created and installed
