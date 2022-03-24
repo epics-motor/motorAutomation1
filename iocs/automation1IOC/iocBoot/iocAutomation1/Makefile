@@ -1,5 +1,8 @@
 TOP = ../..
 include $(TOP)/configure/CONFIG
 ARCH = $(EPICS_HOST_ARCH)
-TARGETS = envPaths
+# Linux only needs envPaths
+#TARGETS = envPaths
+# Windows needs envPaths and dllPath.bat
+TARGETS = envPaths dllPath.bat
 include $(TOP)/configure/RULES.ioc
