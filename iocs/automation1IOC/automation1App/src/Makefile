@@ -11,11 +11,6 @@ include $(TOP)/configure/CONFIG
 #=============================
 # Build the IOC application
 
-ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
-# Workaround for static build problems on Linux
-STATIC_BUILD = NO
-endif
-
 PROD_IOC = automation1
 # automation1.dbd will be created and installed
 DBD += automation1.dbd
@@ -45,12 +40,12 @@ automation1c_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 endif
 
 ifeq (win32-x86, $(findstring win32-x86, $(T_A)))
-	PROD_LIBS += automation1c
+	PROD_SYS_LIBS += automation1c
 else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
-	PROD_LIBS += automation1c64
+	PROD_SYS_LIBS += automation1c64
 else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
-	PROD_LIBS += automation1compiler
-	PROD_LIBS += automation1c
+	PROD_SYS_LIBS += automation1compiler
+	PROD_SYS_LIBS += automation1c
 endif
 
 # Add all the support libraries needed by this IOC
