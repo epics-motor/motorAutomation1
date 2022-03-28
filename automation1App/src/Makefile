@@ -23,9 +23,9 @@ automation1c_DIR += $(MOTOR)/bin/$(EPICS_HOST_ARCH)
 endif
 
 ifeq (win32-x86, $(findstring win32-x86, $(T_A)))
-	PROD_LIBS += automation1c
+	Automation1_LIBS += automation1c
 else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
-	PROD_LIBS += automation1c64
+	Automation1_LIBS += automation1c64
 else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
 	PROD_SYS_LIBS += automation1compiler
 	PROD_SYS_LIBS += automation1c
