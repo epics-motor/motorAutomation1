@@ -16,8 +16,8 @@ else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
 	LIB_INSTALLS += ../Library/Windows/x64/Automation1C64.lib
 	BIN_INSTALLS += ../Library/Windows/x64/Automation1Compiler64.dll
 else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
-	BIN_INSTALLS += ../Library/Linux/x64/libautomation1c.so
-	BIN_INSTALLS += ../Library/Linux/x64/libautomation1compiler.so
+	LIB_INSTALLS += ../Library/Linux/x64/libautomation1c.so
+	LIB_INSTALLS += ../Library/Linux/x64/libautomation1compiler.so
 endif
 
 #=============================

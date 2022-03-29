@@ -27,11 +27,9 @@ ifeq (win32-x86, $(findstring win32-x86, $(T_A)))
 else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
 	Automation1_LIBS += automation1c64
 else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
-	Automation1_LIBS += automation1compiler
-	Automation1_LIBS += automation1c
+	Automation1_SYS_LIBS += automation1compiler
+	Automation1_SYS_LIBS += automation1c
 endif
-
-
 
 DBD += devAutomation1Motor.dbd
 
