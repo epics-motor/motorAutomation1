@@ -231,6 +231,7 @@ asynStatus Automation1MotorController::buildProfile()
 
     // For the initial release, it was decided to limit profile motion to 1 ms increments in order
     // to keep motion in-sync with the real time data collection.
+    /*
     if (timeMode != PROFILE_TIME_MODE_FIXED)
     {
         buildOK = false;
@@ -249,6 +250,7 @@ asynStatus Automation1MotorController::buildProfile()
             goto done;
         }
     }
+    */
 
     // We need to make a configuration handle for the data points we want to log at each pulse.  
     // This will be used to retrieve data from the controller.
