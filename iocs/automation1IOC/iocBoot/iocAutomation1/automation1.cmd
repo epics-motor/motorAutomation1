@@ -1,5 +1,5 @@
 
-Automation1CreateController("Automation1", "127.0.0.1", 4, 100, 1000)
+Automation1CreateController("Automation1", "164.54.104.47", 4, 100, 1000)
 
 # traceError and traceIODriver
 #!asynSetTraceMask("Automation1", 0, 0x9)
