@@ -23,6 +23,7 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+static const char *driverName = "Automation1MotorController";
 
 /** Creates a new Automation1MotorController object.
   *
@@ -199,8 +200,11 @@ asynStatus Automation1MotorController::buildProfile()
     int moveMode;
     int numUsedAxes;
     int useAxis;
+    double timePerPoint;
+    double totalTime;
     std::string profileMoveFileContents;
     Automation1MotorAxis* axis;
+    static const char *functionName="buildProfile";
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
     setIntegerParam(profileBuildStatus_, PROFILE_STATUS_UNDEFINED);
@@ -208,6 +212,7 @@ asynStatus Automation1MotorController::buildProfile()
     getIntegerParam(profileNumPoints_, &numPoints);
     getIntegerParam(profileNumPulses_, &numPulses);
     getIntegerParam(profileTimeMode_, &timeMode);
+    getDoubleParam(profileFixedTime_, &timePerPoint);
     getIntegerParam(profileMoveMode_, &moveMode);
     callParamCallbacks();
 
@@ -229,34 +234,29 @@ asynStatus Automation1MotorController::buildProfile()
     profileAxes_.shrink_to_fit();
     numUsedAxes = profileAxes_.size();
 
-    // For the initial release, it was decided to limit profile motion to 1 ms increments in order
-    // to keep motion in-sync with the real time data collection.
-    /*
-    if (timeMode != PROFILE_TIME_MODE_FIXED)
+    // The data collection points will be based on the total trajectory time and the 1kHz collection frequency
+    // The profile trajectory will usually have many fewer points in it.
+    if (timeMode == PROFILE_TIME_MODE_FIXED)
     {
-        buildOK = false;
-        logError(profileBuildMessage_ , "Automation1 driver only supports fixed-time, 1 ms profiles. Time mode is not fixed.");
-        goto done;
+        totalTime = timePerPoint * numPoints;
     }
-    
-    for (i = 0; i < numPoints; i++)
+    else
     {
-        if (profileTimes_[i] != 0.001)
+        totalTime = 0;
+        for (i=0; i < numPoints; i++)
         {
-            buildOK = false;
-            logError(profileBuildMessage_, "Automation1 driver only supports fixed-time, 1 ms profiles. Index %d of the time array has a time of %f",
-                     i,
-                     profileTimes_[i]);
-            goto done;
+            totalTime += profileTimes_[i];
         }
     }
-    */
-
-    // We need to make a configuration handle for the data points we want to log at each pulse.  
+    // The lowest data collection frequency is currently 1kHz. Arbitrary frequencies will likely be supported in the future.
+    numDataPoints_ = totalTime * 1000;
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: totalTime = %lf, numDataPoints = %i\n", driverName, functionName, totalTime, numDataPoints_);
+    
+    // We need to make a configuration handle for the data points we want to collect.  
     // This will be used to retrieve data from the controller.
     if (!dataCollectionConfig_)
     {
-        if (!Automation1_DataCollectionConfig_Create(Automation1DataCollectionFrequency_1kHz, numPulses, &dataCollectionConfig_))
+        if (!Automation1_DataCollectionConfig_Create(Automation1DataCollectionFrequency_1kHz, numDataPoints_, &dataCollectionConfig_))
         {
             buildOK = false;
             logApiError(profileBuildMessage_, "Could not create dataCollectionConfig");
@@ -465,7 +465,8 @@ asynStatus Automation1MotorController::abortProfile()
 
 asynStatus Automation1MotorController::readbackProfile()
 {
-    int i, j;
+    int i;
+    size_t j;
     int axis;
     bool readbackOK = true;
     int readbackStatus;
@@ -477,7 +478,10 @@ asynStatus Automation1MotorController::readbackProfile()
     int readPoints = 0;
     int signalResultsSize;
     double* signalResults = NULL;
-
+    int dataPointSpacing;
+    double result;
+    static const char *functionName="readbackProfile";
+    
     setIntegerParam(profileReadbackState_, PROFILE_READBACK_BUSY);
     setIntegerParam(profileReadbackStatus_, PROFILE_STATUS_UNDEFINED);
     setStringParam(profileReadbackMessage_, "");
@@ -501,14 +505,26 @@ asynStatus Automation1MotorController::readbackProfile()
     allResultsLength = readPoints * profileAxes_.size() * 2;
     allResultsSize = allResultsLength * sizeof(double);
     allResults = (double*)malloc(allResultsSize);
-
-    if (readPoints > static_cast<int>(maxProfilePoints_))
+    
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: readPoints = %i, allResultsLength = %i, allResultsSize = %i\n", driverName, functionName, readPoints, allResultsLength, allResultsSize);    
+    
+    // Don't cap readPoints at maxProfilePoints_; read all the points that were recorded.
+    if (readPoints > numDataPoints_)
     {
-        readPoints = static_cast<int>(maxProfilePoints_);
+       // TODO: Print a warning/error message
+       asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: readPoints = %i but expected only %i points\n", driverName, functionName, readPoints, numDataPoints_);    
+
     }
+    // If readPoints isn't a multiple of maxProfilePoints_, dataPointSpacing will be truncated.
+    // This may or may not be a problem.
+    dataPointSpacing = readPoints / maxProfilePoints_;
+    
     signalResultsSize = readPoints * sizeof(double);
     signalResults = (double*)malloc(signalResultsSize);
 
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: dataPointSpacing = %i, signalResultsSize = %i\n", driverName, functionName, dataPointSpacing, signalResultsSize);    
+    
+    // Clear the readback and following error arrays
     for (i = 0; i < numAxes_; i++)
     {
         memset(pAxes_[i]->profileReadbacks_, 0, maxProfilePoints_ * sizeof(double));
@@ -528,6 +544,7 @@ asynStatus Automation1MotorController::readbackProfile()
     for (i = 0; i < numProfileAxes; i++)
     {
         axis = profileAxes_[i];
+
         if (!Automation1_DataCollection_GetAxisResults(dataCollectionConfig_, 
                                                        allResults, 
                                                        allResultsLength, 
@@ -541,12 +558,17 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError("Failed to parse program position feedback results");
             goto done;
         }
-
-        for (j = 0; j < readPoints; j++)
+        
+        /*
+         * There are many more data collection points than both triggers and profile waypoints.
+         * For now, provide the maximum amount of data that will fit into existing arrays.
+         */
+        for (j = 0; j < maxProfilePoints_; j++)
         {
-            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
+            // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
+            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            pAxes_[axis]->profileReadbacks_[j] = result;
         }
-        memcpy(pAxes_[i]->profileReadbacks_, signalResults, signalResultsSize);
 
         if (!Automation1_DataCollection_GetAxisResults(dataCollectionConfig_, 
                                                        allResults, 
@@ -561,23 +583,29 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError(profileReadbackMessage_, "Failed to parse position error results");
             goto done;
         }
-
-        for (j = 0; j < readPoints; j++)
+        
+        /*
+         * There are many more data collection points than both triggers and profile waypoints.
+         * For now, provide the maximum amount of data that will fit into existing arrays.
+         */
+        for (j = 0; j < maxProfilePoints_; j++)
         {
-            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
+            // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
+            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            pAxes_[axis]->profileFollowingErrors_[j] = result;
         }
-        memcpy(pAxes_[i]->profileFollowingErrors_, signalResults, signalResultsSize);
     }
 
 done:
 
     free(allResults);
     free(signalResults);
-    setIntegerParam(profileNumReadbacks_, readPoints);
+    setIntegerParam(profileNumReadbacks_, maxProfilePoints_);
 
     for (i = 0; i < numProfileAxes; i++)
     {
-        pAxes_[i]->readbackProfile();
+        axis = profileAxes_[i];
+        pAxes_[axis]->readbackProfile();
     }
 
     readbackStatus = readbackOK ? PROFILE_STATUS_SUCCESS : PROFILE_STATUS_FAILURE;

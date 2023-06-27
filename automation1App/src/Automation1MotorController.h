@@ -70,7 +70,10 @@ private:
     // A handle that will be used to specify the data logged for
     // readbacks.
     Automation1DataCollectionConfig dataCollectionConfig_;
-
+    
+    // The total number of data collection points
+    int numDataPoints_;
+    
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
 
