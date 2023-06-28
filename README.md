@@ -20,7 +20,3 @@ If using st.cmd.automation1 from the example IOC, be sure to change the host nam
 The Automation1 C API for Linux supports Debian 10.x. This motor module has also been tested on Ubuntu 18.04. Any Linux distribution that has GCC 8.3.0, GLIBC 2.28,
 GLIBCXX 3.4.25, libsodium 1.0.17, or newer versions, may work.
 
-**Profile Motion**
-
-Currently, motorAutomation1 only supports fixed profile motion at a rate of one point per millisecond. This limitation was put in place in order to keep motion in-sync with data collection, as data collection can only happen at certain predefined frequencies.
-
