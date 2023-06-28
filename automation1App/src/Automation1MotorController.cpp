@@ -42,6 +42,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         0, 0)    // Default priority and stack size
 {
     dataCollectionConfig_ = NULL;
+    displayPointSpacing_ = 1;
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
     createAsynParams();
@@ -250,7 +251,8 @@ asynStatus Automation1MotorController::buildProfile()
     }
     // The lowest data collection frequency is currently 1kHz. Arbitrary frequencies will likely be supported in the future.
     numDataPoints_ = totalTime * 1000;
-    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: totalTime = %lf, numDataPoints = %i\n", driverName, functionName, totalTime, numDataPoints_);
+    displayPointSpacing_ = numDataPoints_ / numPoints;
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: totalTime = %lf, numDataPoints = %i, displayPointSpacing_ = %i\n", driverName, functionName, totalTime, numDataPoints_, displayPointSpacing_);
     
     // We need to make a configuration handle for the data points we want to collect.  
     // This will be used to retrieve data from the controller.
@@ -649,7 +651,7 @@ asynStatus Automation1MotorController::poll()
         }
         taskStatus = &taskStatusArray[PROFILE_MOVE_TASK_INDEX];
 
-        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints;
+        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints / displayPointSpacing_;
         if (currentPoint > numPoints)
         {
             currentPoint = numPoints;

@@ -73,6 +73,8 @@ private:
     
     // The total number of data collection points
     int numDataPoints_;
+    // The ratio of recorded data points to profile waypoints
+    int displayPointSpacing_;
     
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
