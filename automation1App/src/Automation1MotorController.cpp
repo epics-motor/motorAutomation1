@@ -325,7 +325,7 @@ asynStatus Automation1MotorController::buildProfile()
             profileMoveFileContents.append("]\n");
         }
     }
-
+    
     // In order to run Pt moves, the task that will run the moves must have "3-position / 1-velocity"
     // interpolation mode (task value 1).  By default, the task is in "2-position / 2-velocity"
     // interpolation mode (task value 0).
@@ -349,7 +349,9 @@ asynStatus Automation1MotorController::buildProfile()
     {
         profileMoveFileContents.append("SetupTaskTargetMode(TargetMode.Incremental)\n");
     }
-
+    
+    // TODO: Configure PSO here
+        
     // We start data collection just before the actual profile moves.
     profileMoveFileContents.append("AppDataCollectionSnapshot()\n");
 
@@ -413,7 +415,19 @@ done:
 asynStatus Automation1MotorController::executeProfile()
 {
     bool executeOK = true;
+    int i;
+    int moveMode;
+    Automation1MotorAxis* axis;
+    double motorRecVelocity;
+    double defaultVelocity;
+    //double defaultCoordVelocity;
+    int* axes;
+    int numUsedAxes;
+    double *positions;
+    double *velocities;
+    static const char *functionName="executeProfile";
 
+    getIntegerParam(profileMoveMode_, &moveMode);
     setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_MOVE_START);
     setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_UNDEFINED);
     setStringParam(profileExecuteMessage_, "");
@@ -426,7 +440,48 @@ asynStatus Automation1MotorController::executeProfile()
                                      dataCollectionConfig_,
                                      Automation1DataCollectionMode_Snapshot);
     Automation1_DataCollection_Stop(controller_);
-
+    
+    // Move motors to the start position
+    if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+    {
+        axes = &profileAxes_[0];
+        numUsedAxes = profileAxes_.size();
+        positions = (double*)calloc(numUsedAxes, sizeof(double));
+        velocities = (double*)calloc(numUsedAxes, sizeof(double));
+        
+        // Determine starting positions and velocities
+        for (i = 0; i < numUsedAxes; i++)
+        {
+            // Collect the starting positions
+            axis = pAxes_[profileAxes_[i]];
+            positions[i] = axis->profilePositions_[0] / axis->countsPerUnitParam_;
+            
+            // Query motor record and default axis velocities
+            getDoubleParam(motorVelocity_, profileAxes_[i], &motorRecVelocity);
+            Automation1_Parameter_GetAxisValue(controller_, profileAxes_[i], Automation1AxisParameterId_DefaultAxisSpeed, &defaultVelocity);
+            // The default coordinated speed exceeded the max speed for the axis used during development
+            //Automation1_Parameter_GetTaskValue(controller_, profileAxes_[i], Automation1TaskParameterId_DefaultCoordinatedSpeed, &defaultCoordVelocity);
+            
+            // Set the velocity to a reasonable value
+            if (motorRecVelocity != 0.0)
+            {
+                // if a move was made using the motor record since the IOC started, motorRecVelocity should be non-zero, so we'll use it.
+                velocities[i] = motorRecVelocity;
+            }
+            else
+            {
+                // if a move hasn't been commanded using the motor record since the IOC started, use the default axis speed in the controller instead.
+                velocities[i] = defaultVelocity;
+            
+            asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: axis = %i, motorRecVelocity = %lf, defaultVelocity = %lf\n", driverName, functionName, profileAxes_[i], motorRecVelocity, defaultVelocity);
+        }
+        // Automation1_Command_MoveAbsolute(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* positions, int32_t positionsLength, double* speeds, int32_t speedsLength);
+        Automation1_Command_MoveAbsolute(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
+        // Automation1_Command_WaitForMotionDone(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength);
+        Automation1_Command_WaitForMotionDone(controller_, 1, axes, numUsedAxes);
+        }
+    }
+    
     // This compiles and runs the Aeroscript file on the controller. Note that this function returns
     // after the program is started, it does not wait for the program to finish.
     if (!Automation1_Task_ProgramRun(controller_,
@@ -449,7 +504,10 @@ done:
         setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
     }
     callParamCallbacks();
-
+    
+    free(positions);
+    free(velocities);
+    
     return executeOK ? asynSuccess : asynError;
 }
 
