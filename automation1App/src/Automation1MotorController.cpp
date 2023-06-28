@@ -23,6 +23,7 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+static const char *driverName = "Automation1MotorController";
 
 /** Creates a new Automation1MotorController object.
   *
@@ -41,6 +42,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         0, 0)    // Default priority and stack size
 {
     dataCollectionConfig_ = NULL;
+    displayPointSpacing_ = 1;
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
     createAsynParams();
@@ -199,8 +201,11 @@ asynStatus Automation1MotorController::buildProfile()
     int moveMode;
     int numUsedAxes;
     int useAxis;
+    double timePerPoint;
+    double totalTime;
     std::string profileMoveFileContents;
     Automation1MotorAxis* axis;
+    static const char *functionName="buildProfile";
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
     setIntegerParam(profileBuildStatus_, PROFILE_STATUS_UNDEFINED);
@@ -208,6 +213,7 @@ asynStatus Automation1MotorController::buildProfile()
     getIntegerParam(profileNumPoints_, &numPoints);
     getIntegerParam(profileNumPulses_, &numPulses);
     getIntegerParam(profileTimeMode_, &timeMode);
+    getDoubleParam(profileFixedTime_, &timePerPoint);
     getIntegerParam(profileMoveMode_, &moveMode);
     callParamCallbacks();
 
@@ -229,32 +235,35 @@ asynStatus Automation1MotorController::buildProfile()
     profileAxes_.shrink_to_fit();
     numUsedAxes = profileAxes_.size();
 
-    // For the initial release, it was decided to limit profile motion to 1 ms increments in order
-    // to keep motion in-sync with the real time data collection.
-    if (timeMode != PROFILE_TIME_MODE_FIXED)
+    // The data collection points will be based on the total trajectory time and the 1kHz collection frequency
+    // The profile trajectory will usually have many fewer points in it.
+    if (timeMode == PROFILE_TIME_MODE_FIXED)
     {
-        buildOK = false;
-        logError(profileBuildMessage_ , "Automation1 driver only supports fixed-time, 1 ms profiles. Time mode is not fixed.");
-        goto done;
+        totalTime = timePerPoint * numPoints;
     }
-    
-    for (i = 0; i < numPoints; i++)
+    else
     {
-        if (profileTimes_[i] != 0.001)
+        totalTime = 0;
+        for (i=0; i < numPoints; i++)
         {
-            buildOK = false;
-            logError(profileBuildMessage_, "Automation1 driver only supports fixed-time, 1 ms profiles. Index %d of the time array has a time of %f",
-                     i,
-                     profileTimes_[i]);
-            goto done;
+            totalTime += profileTimes_[i];
         }
     }
-
-    // We need to make a configuration handle for the data points we want to log at each pulse.  
+    // The lowest data collection frequency is currently 1kHz. Arbitrary frequencies will likely be supported in the future.
+    numDataPoints_ = totalTime * 1000;
+    displayPointSpacing_ = numDataPoints_ / numPoints;
+    if (displayPointSpacing_ < 1)
+    {
+        // Don't let truncation of integer values result in divide-by-zero errors
+        displayPointSpacing_ = 1;
+    }
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: totalTime = %lf, numDataPoints = %i, displayPointSpacing_ = %i\n", driverName, functionName, totalTime, numDataPoints_, displayPointSpacing_);
+    
+    // We need to make a configuration handle for the data points we want to collect.  
     // This will be used to retrieve data from the controller.
     if (!dataCollectionConfig_)
     {
-        if (!Automation1_DataCollectionConfig_Create(Automation1DataCollectionFrequency_1kHz, numPulses, &dataCollectionConfig_))
+        if (!Automation1_DataCollectionConfig_Create(Automation1DataCollectionFrequency_1kHz, numDataPoints_, &dataCollectionConfig_))
         {
             buildOK = false;
             logApiError(profileBuildMessage_, "Could not create dataCollectionConfig");
@@ -321,7 +330,7 @@ asynStatus Automation1MotorController::buildProfile()
             profileMoveFileContents.append("]\n");
         }
     }
-
+    
     // In order to run Pt moves, the task that will run the moves must have "3-position / 1-velocity"
     // interpolation mode (task value 1).  By default, the task is in "2-position / 2-velocity"
     // interpolation mode (task value 0).
@@ -345,7 +354,9 @@ asynStatus Automation1MotorController::buildProfile()
     {
         profileMoveFileContents.append("SetupTaskTargetMode(TargetMode.Incremental)\n");
     }
-
+    
+    // TODO: Configure PSO here
+        
     // We start data collection just before the actual profile moves.
     profileMoveFileContents.append("AppDataCollectionSnapshot()\n");
 
@@ -409,7 +420,19 @@ done:
 asynStatus Automation1MotorController::executeProfile()
 {
     bool executeOK = true;
+    int i;
+    int moveMode;
+    Automation1MotorAxis* axis;
+    double motorRecVelocity;
+    double defaultVelocity;
+    //double defaultCoordVelocity;
+    int* axes;
+    int numUsedAxes;
+    double *positions;
+    double *velocities;
+    static const char *functionName="executeProfile";
 
+    getIntegerParam(profileMoveMode_, &moveMode);
     setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_MOVE_START);
     setIntegerParam(profileExecuteStatus_, PROFILE_STATUS_UNDEFINED);
     setStringParam(profileExecuteMessage_, "");
@@ -422,7 +445,48 @@ asynStatus Automation1MotorController::executeProfile()
                                      dataCollectionConfig_,
                                      Automation1DataCollectionMode_Snapshot);
     Automation1_DataCollection_Stop(controller_);
-
+    
+    // Move motors to the start position
+    if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+    {
+        axes = &profileAxes_[0];
+        numUsedAxes = profileAxes_.size();
+        positions = (double*)calloc(numUsedAxes, sizeof(double));
+        velocities = (double*)calloc(numUsedAxes, sizeof(double));
+        
+        // Determine starting positions and velocities
+        for (i = 0; i < numUsedAxes; i++)
+        {
+            // Collect the starting positions
+            axis = pAxes_[profileAxes_[i]];
+            positions[i] = axis->profilePositions_[0] / axis->countsPerUnitParam_;
+            
+            // Query motor record and default axis velocities
+            getDoubleParam(motorVelocity_, profileAxes_[i], &motorRecVelocity);
+            Automation1_Parameter_GetAxisValue(controller_, profileAxes_[i], Automation1AxisParameterId_DefaultAxisSpeed, &defaultVelocity);
+            // The default coordinated speed exceeded the max speed for the axis used during development
+            //Automation1_Parameter_GetTaskValue(controller_, profileAxes_[i], Automation1TaskParameterId_DefaultCoordinatedSpeed, &defaultCoordVelocity);
+            
+            // Set the velocity to a reasonable value
+            if (motorRecVelocity != 0.0)
+            {
+                // if a move was made using the motor record since the IOC started, motorRecVelocity should be non-zero, so we'll use it.
+                velocities[i] = motorRecVelocity;
+            }
+            else
+            {
+                // if a move hasn't been commanded using the motor record since the IOC started, use the default axis speed in the controller instead.
+                velocities[i] = defaultVelocity;
+            
+            asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: axis = %i, motorRecVelocity = %lf, defaultVelocity = %lf\n", driverName, functionName, profileAxes_[i], motorRecVelocity, defaultVelocity);
+        }
+        // Automation1_Command_MoveAbsolute(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* positions, int32_t positionsLength, double* speeds, int32_t speedsLength);
+        Automation1_Command_MoveAbsolute(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
+        // Automation1_Command_WaitForMotionDone(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength);
+        Automation1_Command_WaitForMotionDone(controller_, 1, axes, numUsedAxes);
+        }
+    }
+    
     // This compiles and runs the Aeroscript file on the controller. Note that this function returns
     // after the program is started, it does not wait for the program to finish.
     if (!Automation1_Task_ProgramRun(controller_,
@@ -445,7 +509,10 @@ done:
         setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
     }
     callParamCallbacks();
-
+    
+    free(positions);
+    free(velocities);
+    
     return executeOK ? asynSuccess : asynError;
 }
 
@@ -463,7 +530,8 @@ asynStatus Automation1MotorController::abortProfile()
 
 asynStatus Automation1MotorController::readbackProfile()
 {
-    int i, j;
+    int i;
+    size_t j;
     int axis;
     bool readbackOK = true;
     int readbackStatus;
@@ -475,7 +543,10 @@ asynStatus Automation1MotorController::readbackProfile()
     int readPoints = 0;
     int signalResultsSize;
     double* signalResults = NULL;
-
+    int dataPointSpacing;
+    double result;
+    static const char *functionName="readbackProfile";
+    
     setIntegerParam(profileReadbackState_, PROFILE_READBACK_BUSY);
     setIntegerParam(profileReadbackStatus_, PROFILE_STATUS_UNDEFINED);
     setStringParam(profileReadbackMessage_, "");
@@ -499,14 +570,26 @@ asynStatus Automation1MotorController::readbackProfile()
     allResultsLength = readPoints * profileAxes_.size() * 2;
     allResultsSize = allResultsLength * sizeof(double);
     allResults = (double*)malloc(allResultsSize);
-
-    if (readPoints > static_cast<int>(maxProfilePoints_))
+    
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: readPoints = %i, allResultsLength = %i, allResultsSize = %i\n", driverName, functionName, readPoints, allResultsLength, allResultsSize);    
+    
+    // Don't cap readPoints at maxProfilePoints_; read all the points that were recorded.
+    if (readPoints > numDataPoints_)
     {
-        readPoints = static_cast<int>(maxProfilePoints_);
+       // TODO: Print a warning/error message
+       asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: readPoints = %i but expected only %i points\n", driverName, functionName, readPoints, numDataPoints_);    
+
     }
+    // If readPoints isn't a multiple of maxProfilePoints_, dataPointSpacing will be truncated.
+    // This may or may not be a problem.
+    dataPointSpacing = readPoints / maxProfilePoints_;
+    
     signalResultsSize = readPoints * sizeof(double);
     signalResults = (double*)malloc(signalResultsSize);
 
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: dataPointSpacing = %i, signalResultsSize = %i\n", driverName, functionName, dataPointSpacing, signalResultsSize);    
+    
+    // Clear the readback and following error arrays
     for (i = 0; i < numAxes_; i++)
     {
         memset(pAxes_[i]->profileReadbacks_, 0, maxProfilePoints_ * sizeof(double));
@@ -526,6 +609,7 @@ asynStatus Automation1MotorController::readbackProfile()
     for (i = 0; i < numProfileAxes; i++)
     {
         axis = profileAxes_[i];
+
         if (!Automation1_DataCollection_GetAxisResults(dataCollectionConfig_, 
                                                        allResults, 
                                                        allResultsLength, 
@@ -539,12 +623,17 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError("Failed to parse program position feedback results");
             goto done;
         }
-
-        for (j = 0; j < readPoints; j++)
+        
+        /*
+         * There are many more data collection points than both triggers and profile waypoints.
+         * For now, provide the maximum amount of data that will fit into existing arrays.
+         */
+        for (j = 0; j < maxProfilePoints_; j++)
         {
-            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
+            // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
+            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            pAxes_[axis]->profileReadbacks_[j] = result;
         }
-        memcpy(pAxes_[i]->profileReadbacks_, signalResults, signalResultsSize);
 
         if (!Automation1_DataCollection_GetAxisResults(dataCollectionConfig_, 
                                                        allResults, 
@@ -559,23 +648,29 @@ asynStatus Automation1MotorController::readbackProfile()
             logApiError(profileReadbackMessage_, "Failed to parse position error results");
             goto done;
         }
-
-        for (j = 0; j < readPoints; j++)
+        
+        /*
+         * There are many more data collection points than both triggers and profile waypoints.
+         * For now, provide the maximum amount of data that will fit into existing arrays.
+         */
+        for (j = 0; j < maxProfilePoints_; j++)
         {
-            signalResults[j] = signalResults[j] * pAxes_[i]->countsPerUnitParam_;
+            // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
+            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            pAxes_[axis]->profileFollowingErrors_[j] = result;
         }
-        memcpy(pAxes_[i]->profileFollowingErrors_, signalResults, signalResultsSize);
     }
 
 done:
 
     free(allResults);
     free(signalResults);
-    setIntegerParam(profileNumReadbacks_, readPoints);
+    setIntegerParam(profileNumReadbacks_, maxProfilePoints_);
 
     for (i = 0; i < numProfileAxes; i++)
     {
-        pAxes_[i]->readbackProfile();
+        axis = profileAxes_[i];
+        pAxes_[axis]->readbackProfile();
     }
 
     readbackStatus = readbackOK ? PROFILE_STATUS_SUCCESS : PROFILE_STATUS_FAILURE;
@@ -619,7 +714,7 @@ asynStatus Automation1MotorController::poll()
         }
         taskStatus = &taskStatusArray[PROFILE_MOVE_TASK_INDEX];
 
-        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints;
+        currentPoint = dataCollectionStatus.NumberOfRetrievedPoints / displayPointSpacing_;
         if (currentPoint > numPoints)
         {
             currentPoint = numPoints;
