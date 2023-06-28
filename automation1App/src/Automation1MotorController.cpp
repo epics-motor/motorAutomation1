@@ -252,6 +252,11 @@ asynStatus Automation1MotorController::buildProfile()
     // The lowest data collection frequency is currently 1kHz. Arbitrary frequencies will likely be supported in the future.
     numDataPoints_ = totalTime * 1000;
     displayPointSpacing_ = numDataPoints_ / numPoints;
+    if (displayPointSpacing_ < 1)
+    {
+        // Don't let truncation of integer values result in divide-by-zero errors
+        displayPointSpacing_ = 1;
+    }
     asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: totalTime = %lf, numDataPoints = %i, displayPointSpacing_ = %i\n", driverName, functionName, totalTime, numDataPoints_, displayPointSpacing_);
     
     // We need to make a configuration handle for the data points we want to collect.  
