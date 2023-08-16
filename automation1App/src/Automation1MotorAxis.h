@@ -41,7 +41,12 @@ private:
     // to those functions and to asynPrint in this function.
     void logError(const char* driverMessage);
     
-    double countsPerUnitParam_;    
+    double countsPerUnitParam_;
+    
+    double profilePreDistance_;
+    double profilePrePosition_;
+    double profilePostDistance_;
+    double profilePostPosition_;
     
     friend class Automation1MotorController;
 };

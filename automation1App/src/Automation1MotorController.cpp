@@ -8,6 +8,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+// for debugging
+#include <fstream>
 
 #include <iocsh.h>
 #include <epicsThread.h>
@@ -192,7 +194,7 @@ asynStatus Automation1MotorController::initializeProfile(size_t maxProfilePoints
 
 asynStatus Automation1MotorController::buildProfile()
 {
-    int i, j;
+    int i, j, idx;
     bool buildOK = true;
     int numPoints;
     int numPulses;
@@ -203,8 +205,15 @@ asynStatus Automation1MotorController::buildProfile()
     int useAxis;
     double timePerPoint;
     double totalTime;
+    double accelerationTime;
+    double segmentTime;
+    double distance;
+    double preVelocity[MAX_AUTOMATION1_AXES];
+    double postVelocity[MAX_AUTOMATION1_AXES];
     std::string profileMoveFileContents;
     Automation1MotorAxis* axis;
+    // for troubleshooting
+    std::ofstream file("epics_profile_move.ascript");
     static const char *functionName="buildProfile";
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
@@ -214,10 +223,12 @@ asynStatus Automation1MotorController::buildProfile()
     getIntegerParam(profileNumPulses_, &numPulses);
     getIntegerParam(profileTimeMode_, &timeMode);
     getDoubleParam(profileFixedTime_, &timePerPoint);
+    // Acceleration is actually acceleration time (unit: seconds)
+    getDoubleParam(profileAcceleration_, &accelerationTime);
     getIntegerParam(profileMoveMode_, &moveMode);
     callParamCallbacks();
 
-    // Call the base class method to initialize the time array.
+    // Call the base class method to initialize the time array.  In fixed mode this sets each element to the value of the profileFixedTime_ parameter.
     asynMotorController::buildProfile();
 
     // To avoid needless iteration, we make a vector of the axes in use during profile motion.
@@ -231,24 +242,86 @@ asynStatus Automation1MotorController::buildProfile()
         {
             profileAxes_.push_back(i);
         }
+        preVelocity[i] = 0.0;
+        postVelocity[i] = 0.0;
     }
     profileAxes_.shrink_to_fit();
     numUsedAxes = profileAxes_.size();
+    
+    /*
+     * TODO: where to check for max acceleration? (min acceleration?)
+     */
+    
+    // calculate the pre and post distance
+    if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+    {
+        for (i = 0; i < numUsedAxes; i++)
+        {
+            idx = profileAxes_[i];
+            axis = pAxes_[idx];
+            
+            // In absolute move mode, the difference between the first two profile points is the distance for the first segment
+            distance = pAxes_[idx]->profilePositions_[1] - pAxes_[idx]->profilePositions_[0];
+            preVelocity[idx] = distance / profileTimes_[0];
+            
+            axis->profilePreDistance_ = 0.5 * preVelocity[idx] * accelerationTime;
+            axis->profilePrePosition_ = pAxes_[idx]->profilePositions_[0] - axis->profilePreDistance_;
+            
+            // In absolute move mode, the difference between the last two profile points is the distance of the last segment
+            distance = pAxes_[idx]->profilePositions_[numPoints-1] - 
+                       pAxes_[idx]->profilePositions_[numPoints-2];
+            // The 2nd-to-last profile time is used, since num segments = num points - 1
+            postVelocity[idx] = distance / profileTimes_[numPoints-2];
 
+            axis->profilePostDistance_ = 0.5 * postVelocity[idx] * accelerationTime;
+            axis->profilePostPosition_ = pAxes_[idx]->profilePositions_[numPoints-1] + axis->profilePostDistance_;
+        }
+    }
+    else
+    {
+        for (i = 0; i < numUsedAxes; i++)
+        {
+            idx = profileAxes_[i];
+            axis = pAxes_[idx];
+            
+            // In relative move mode, the first position is the distance for the first segment
+            distance = pAxes_[idx]->profilePositions_[0];
+            preVelocity[idx] = distance / profileTimes_[0];
+            
+            axis->profilePreDistance_ = 0.5 * preVelocity[idx] * accelerationTime;
+            axis->profilePrePosition_ = -axis->profilePreDistance_;
+            
+            // In relative move mode, the second-to-last position is the distance for the last segment and the last point should be ignored
+            distance = pAxes_[idx]->profilePositions_[numPoints-2];
+            // The 2nd-to-last profile time is used, since num segments = num points - 1
+            postVelocity[idx] = distance / profileTimes_[numPoints-2];
+            
+            axis->profilePostDistance_ = 0.5 * postVelocity[idx] * accelerationTime;
+            axis->profilePostPosition_ = axis->profilePostDistance_;
+        }
+    }
+    
     // The data collection points will be based on the total trajectory time and the 1kHz collection frequency
     // The profile trajectory will usually have many fewer points in it.
     if (timeMode == PROFILE_TIME_MODE_FIXED)
     {
-        totalTime = timePerPoint * numPoints;
+        // The total time should be timePerPoint * numSegments, where numSegments = numPoints - 1
+        totalTime = timePerPoint * (numPoints-1);
     }
     else
     {
         totalTime = 0;
-        for (i=0; i < numPoints; i++)
+        // The total time omits the last point, which is why (numPoints-1) is used
+        for (i=0; i < (numPoints-1); i++)
         {
             totalTime += profileTimes_[i];
         }
     }
+    // Add the time ramping up/down
+    totalTime += (accelerationTime * 2);
+    // There is some overhead which results in the data collection stopping before the end of the scan
+    //totalTime += 1.0;
+    
     // The lowest data collection frequency is currently 1kHz. Arbitrary frequencies will likely be supported in the future.
     numDataPoints_ = totalTime * 1000;
     displayPointSpacing_ = numDataPoints_ / numPoints;
@@ -362,13 +435,66 @@ asynStatus Automation1MotorController::buildProfile()
 
     // This block assembled the main part of the program.  Each profile time corresponds to one
     // movePtCommand in Aereoscript.
-    for (i = 0; i < numPoints; i++)
+    // i = -1 => ramp up ; i = numPoints => ramp down
+    for (i = -1; i <= numPoints; i++)
     {
+        if (i == numPoints-1)
+        {
+            // Skip the last user-specified point; it isn't meaningful in relative mode since there are only n-1 segments.
+            // In absolute mode the (numPoints-1)th position was already included in the (numPoints-2)th point.
+            continue;
+        }
         profileMoveFileContents.append("MovePt($axes, [");
         for (j = 0; j < numUsedAxes; j++)
         {
             axis = pAxes_[profileAxes_[j]];
-            profileMoveFileContents.append(std::to_string(axis->profilePositions_[i] / axis->countsPerUnitParam_));
+            if (i == -1)
+            {
+                // Ramp up before starting user-specified profile
+                if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+                {
+                    // The ramp up ends at the first (0th) user-specified point
+                    profileMoveFileContents.append(std::to_string(axis->profilePositions_[i+1] / axis->countsPerUnitParam_));
+                }
+                else
+                {
+                    // The ramp up ends at after returning the pre distance
+                    profileMoveFileContents.append(std::to_string(axis->profilePreDistance_ / axis->countsPerUnitParam_));
+                }
+                // The ramp up period always uses the user-specified acceleration time
+                segmentTime = accelerationTime;
+                
+            }
+            else if (i == numPoints)
+            {
+                // Ramp down after completing user-specified profile
+                if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+                {
+                    // The ramp down ends at the post position
+                    profileMoveFileContents.append(std::to_string(axis->profilePostPosition_ / axis->countsPerUnitParam_));
+                }
+                else
+                {
+                    // The ramp down ends at after traveling the post distance
+                    profileMoveFileContents.append(std::to_string(axis->profilePostDistance_ / axis->countsPerUnitParam_));
+                }
+                // The ramp down period always uses the user-specified acceleration time
+                segmentTime = accelerationTime;
+            }
+            else
+            {
+                if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+                {
+                    // The position for the (i)th segement is the end point for that segment, which is the (i+1)th position
+                    profileMoveFileContents.append(std::to_string(axis->profilePositions_[i+1] / axis->countsPerUnitParam_));
+                }
+                else
+                {
+                    // The displacement for th (i)th segment is the (i)th position
+                    profileMoveFileContents.append(std::to_string(axis->profilePositions_[i] / axis->countsPerUnitParam_));
+                }
+                segmentTime = profileTimes_[i];
+            }
             if (j != numUsedAxes - 1)
             {
                 profileMoveFileContents.append(",");
@@ -379,7 +505,7 @@ asynStatus Automation1MotorController::buildProfile()
             }
         }
         // Automation1 assumes that this value is in ms, not s, so we perform the conversion.
-        profileMoveFileContents.append(std::to_string(profileTimes_[i] * 1000));
+        profileMoveFileContents.append(std::to_string(segmentTime * 1000));
         profileMoveFileContents.append(")\n");
     }
 
@@ -389,7 +515,11 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append(std::to_string(PROFILE_MOVE_TASK_INDEX));
     profileMoveFileContents.append(", TaskParameter.MotionInterpolationMode, $motionInterpolationMode)\n");
     profileMoveFileContents.append("end");
-
+    
+    // Write the file to the IOC's startup dir for troubleshooting
+    //file << profileMoveFileContents;
+    //file.close();
+    
     // This command writes the file to the controller.  Note that if the profile move file
     // already exists, it will be overwritten.
     if (!Automation1_Files_WriteBytes(controller_,
@@ -446,46 +576,56 @@ asynStatus Automation1MotorController::executeProfile()
                                      Automation1DataCollectionMode_Snapshot);
     Automation1_DataCollection_Stop(controller_);
     
-    // Move motors to the start position
+    /*
+     * Move motors to the start position
+     */
+    
+    axes = &profileAxes_[0];
+    numUsedAxes = profileAxes_.size();
+    positions = (double*)calloc(numUsedAxes, sizeof(double));
+    velocities = (double*)calloc(numUsedAxes, sizeof(double));
+    
+    // Determine starting positions and velocities
+    for (i = 0; i < numUsedAxes; i++)
+    {
+        // Collect the starting positions
+        axis = pAxes_[profileAxes_[i]];
+        
+        // The move mode was already taken into account when calculating the profilePrePosition_
+        positions[i] = axis->profilePrePosition_ / axis->countsPerUnitParam_;
+        
+        // Query motor record and default axis velocities
+        getDoubleParam(motorVelocity_, profileAxes_[i], &motorRecVelocity);
+        Automation1_Parameter_GetAxisValue(controller_, profileAxes_[i], Automation1AxisParameterId_DefaultAxisSpeed, &defaultVelocity);
+        // The default coordinated speed exceeded the max speed for the axis used during development
+        //Automation1_Parameter_GetTaskValue(controller_, profileAxes_[i], Automation1TaskParameterId_DefaultCoordinatedSpeed, &defaultCoordVelocity);
+        
+        // Set the velocity to a reasonable value
+        if (motorRecVelocity != 0.0)
+        {
+            // if a move was made using the motor record since the IOC started, motorRecVelocity should be non-zero, so we'll use it.
+            velocities[i] = motorRecVelocity;
+        }
+        else
+        {
+            // if a move hasn't been commanded using the motor record since the IOC started, use the default axis speed in the controller instead.
+            velocities[i] = defaultVelocity;
+        }
+        asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: axis = %i, motorRecVelocity = %lf, defaultVelocity = %lf\n", driverName, functionName, profileAxes_[i], motorRecVelocity, defaultVelocity);
+    }
+    
     if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
     {
-        axes = &profileAxes_[0];
-        numUsedAxes = profileAxes_.size();
-        positions = (double*)calloc(numUsedAxes, sizeof(double));
-        velocities = (double*)calloc(numUsedAxes, sizeof(double));
-        
-        // Determine starting positions and velocities
-        for (i = 0; i < numUsedAxes; i++)
-        {
-            // Collect the starting positions
-            axis = pAxes_[profileAxes_[i]];
-            positions[i] = axis->profilePositions_[0] / axis->countsPerUnitParam_;
-            
-            // Query motor record and default axis velocities
-            getDoubleParam(motorVelocity_, profileAxes_[i], &motorRecVelocity);
-            Automation1_Parameter_GetAxisValue(controller_, profileAxes_[i], Automation1AxisParameterId_DefaultAxisSpeed, &defaultVelocity);
-            // The default coordinated speed exceeded the max speed for the axis used during development
-            //Automation1_Parameter_GetTaskValue(controller_, profileAxes_[i], Automation1TaskParameterId_DefaultCoordinatedSpeed, &defaultCoordVelocity);
-            
-            // Set the velocity to a reasonable value
-            if (motorRecVelocity != 0.0)
-            {
-                // if a move was made using the motor record since the IOC started, motorRecVelocity should be non-zero, so we'll use it.
-                velocities[i] = motorRecVelocity;
-            }
-            else
-            {
-                // if a move hasn't been commanded using the motor record since the IOC started, use the default axis speed in the controller instead.
-                velocities[i] = defaultVelocity;
-            
-            asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: axis = %i, motorRecVelocity = %lf, defaultVelocity = %lf\n", driverName, functionName, profileAxes_[i], motorRecVelocity, defaultVelocity);
-        }
         // Automation1_Command_MoveAbsolute(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* positions, int32_t positionsLength, double* speeds, int32_t speedsLength);
         Automation1_Command_MoveAbsolute(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
-        // Automation1_Command_WaitForMotionDone(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength);
-        Automation1_Command_WaitForMotionDone(controller_, 1, axes, numUsedAxes);
-        }
     }
+    else
+    {
+        // Automation1_Command_MoveIncremental(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* distances, int32_t distancesLength, double* speeds, int32_t speedsLength);
+        Automation1_Command_MoveIncremental(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
+    }
+    // Automation1_Command_WaitForMotionDone(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength);
+    Automation1_Command_WaitForMotionDone(controller_, 1, axes, numUsedAxes);
     
     // This compiles and runs the Aeroscript file on the controller. Note that this function returns
     // after the program is started, it does not wait for the program to finish.
@@ -543,7 +683,7 @@ asynStatus Automation1MotorController::readbackProfile()
     int readPoints = 0;
     int signalResultsSize;
     double* signalResults = NULL;
-    int dataPointSpacing;
+    double dataPointSpacing;
     double result;
     static const char *functionName="readbackProfile";
     
@@ -580,14 +720,13 @@ asynStatus Automation1MotorController::readbackProfile()
        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: readPoints = %i but expected only %i points\n", driverName, functionName, readPoints, numDataPoints_);    
 
     }
-    // If readPoints isn't a multiple of maxProfilePoints_, dataPointSpacing will be truncated.
-    // This may or may not be a problem.
-    dataPointSpacing = readPoints / maxProfilePoints_;
+    // dataPointSpacing is a double and is unlikely to be an integer
+    dataPointSpacing = 1.0 * readPoints / maxProfilePoints_;
     
     signalResultsSize = readPoints * sizeof(double);
     signalResults = (double*)malloc(signalResultsSize);
 
-    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: dataPointSpacing = %i, signalResultsSize = %i\n", driverName, functionName, dataPointSpacing, signalResultsSize);    
+    asynPrint(this->pasynUserSelf, ASYN_TRACEIO_DRIVER, "%s:%s: dataPointSpacing = %lf, signalResultsSize = %i\n", driverName, functionName, dataPointSpacing, signalResultsSize);    
     
     // Clear the readback and following error arrays
     for (i = 0; i < numAxes_; i++)
@@ -631,10 +770,15 @@ asynStatus Automation1MotorController::readbackProfile()
         for (j = 0; j < maxProfilePoints_; j++)
         {
             // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
-            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            result = signalResults[(int)floor((j * dataPointSpacing)+0.5)] * pAxes_[axis]->countsPerUnitParam_;
             pAxes_[axis]->profileReadbacks_[j] = result;
-        }
+            // Uncomment for troubleshooting
+            //asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: j = %i ; pos = %lf\n", driverName, functionName, (int) floor((j*dataPointSpacing)+0.5), signalResults[(int)floor((j * dataPointSpacing)+0.5)]);    
 
+        }
+        // Uncomment for troubleshooting
+        //asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: last recorded data point = %lf, index = %i\n", driverName, functionName, signalResults[readPoints-1], readPoints-1);    
+        
         if (!Automation1_DataCollection_GetAxisResults(dataCollectionConfig_, 
                                                        allResults, 
                                                        allResultsLength, 
@@ -656,9 +800,10 @@ asynStatus Automation1MotorController::readbackProfile()
         for (j = 0; j < maxProfilePoints_; j++)
         {
             // Every (numDataPoints_ / maxProfilePoints_)th point should be copied to profileReadbacks_
-            result = signalResults[j * dataPointSpacing] * pAxes_[axis]->countsPerUnitParam_;
+            result = signalResults[(int)floor((j * dataPointSpacing)+0.5)] * pAxes_[axis]->countsPerUnitParam_;
             pAxes_[axis]->profileFollowingErrors_[j] = result;
         }
+
     }
 
 done:
