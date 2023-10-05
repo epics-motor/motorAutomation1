@@ -1,0 +1,78 @@
+# Required records included in trajectoryScan.db but missing from profileMoveController.template
+
+# Which of these records needs to be autosaved (and have PINI=YES)?
+
+# PulseMode was an mbbi in trajectoryScan.db -- why?
+record(mbbo,"$(P)$(R)PulseMode") {
+    field(DTYP, "asynInt32")
+    field(DESC,"Pulse mode")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_MODE")
+    field(VAL, "0")
+    field(ZRVL, "0")
+    field(ZRST, "Fixed")
+    field(ONVL, "1")
+    field(ONST, "Array")
+    field(TWVL, "2")
+    field(TWST, "TrajPts")
+    field(THVL, "3")
+    field(THST, "None")
+    field(PINI, "YES")
+}
+
+record(waveform,"$(P)$(R)PulsePositions") {
+    field(DESC,"Output-pulse positions")
+    field(DTYP, "asynFloat64ArrayOut")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT))AUTOMATION1_PM_PULSE_POS")
+    field(NELM, "$(NPULSES)")
+    field(FTVL, "DOUBLE")
+    #field(PREC, "$(PREC)")
+    field(PREC, "3")
+    field(FLNK, "$(P)$(R)NewPulsePositions")
+}
+
+grecord(ao,"$(P)$(R)NewPulsePositions") {
+    field(DESC,"New pulse positions loaded")
+    field(MDEL,"-1")
+    field(PREC, "3")
+}
+
+grecord(longout,"$(P)$(R)NumPulsePositions") {
+    field(DTYP, "asynInt32")
+    field(DESC,"Num pulse positions to load")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_NUM_PULSES")
+}
+
+record(mbbo, "$(P)$(R)PulseDir") {
+    field(DTYP, "asynInt32")
+    field(DESC,"Both, Neg, or Pos")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_DIR")
+    field(ZRVL, "0")
+    field(ZRST, "Both")
+    field(ONVL, "1")
+    field(ONST, "Pos")
+    field(TWVL, "2")
+    field(TWST, "Neg")
+    field(PINI, "YES")
+}
+record(ao, "$(P)$(R)PulseLenUS") {
+    field(DTYP, "asynFloat64")
+    field(DESC,"pulse length in microseconds")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_LEN")
+    field(DOL, "25")
+    field(PINI, "YES")
+}
+record(longout, "$(P)$(R)PulseSrc") {
+    field(DTYP, "asynInt32")
+    field(DESC,"pulse source (1 or 3)")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_SRC")
+    field(DOL, "1")
+    field(PINI, "YES")
+}
+
+record(longout, "$(P)$(R)PulseAxis") {
+    field(DTYP, "asynInt32")
+    field(DESC,"pulse axis")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_AXIS")
+    field(DOL, "0")
+    field(PINI, "YES")
+}

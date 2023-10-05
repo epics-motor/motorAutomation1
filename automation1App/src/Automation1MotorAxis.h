@@ -47,6 +47,7 @@ private:
     double profilePrePosition_;
     double profilePostDistance_;
     double profilePostPosition_;
+    double profileTotalDistance_;
     
     friend class Automation1MotorController;
 };

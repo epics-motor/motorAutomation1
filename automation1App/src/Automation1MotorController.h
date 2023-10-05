@@ -24,7 +24,15 @@
 #define AUTOMATION1_C_VelocityString        "AUTOMATION1_C_VELOCITY"
 #define AUTOMATION1_C_FErrorString          "AUTOMATION1_C_FERROR"
 #define AUTOMATION1_C_ExecuteCommandString  "AUTOMATION1_C_EXECUTE_COMMAND"
-#define NUM_AUTOMATION1_PARAMS 4
+// Controller-specific profileMove parameters
+#define AUTOMATION1_PM_PulseModeString      "AUTOMATION1_PM_PULSE_MODE"
+#define AUTOMATION1_PM_PulsePosString       "AUTOMATION1_PM_PULSE_POS"
+#define AUTOMATION1_PM_NumPulsesString      "AUTOMATION1_PM_NUM_PULSES"
+#define AUTOMATION1_PM_PulseDirString       "AUTOMATION1_PM_PULSE_DIR"
+#define AUTOMATION1_PM_PulseLenString       "AUTOMATION1_PM_PULSE_LEN"
+#define AUTOMATION1_PM_PulseSrcString       "AUTOMATION1_PM_PULSE_SRC"
+#define AUTOMATION1_PM_PulseAxisString      "AUTOMATION1_PM_PULSE_AXIS"
+#define NUM_AUTOMATION1_PARAMS 11
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -40,10 +48,11 @@ public:
     /* These are the methods that we override */
     asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);	//ajc-osl
     asynStatus writeOctet(asynUser *pasynUser, const char *value, size_t maxChars, size_t *nActual);
+    asynStatus writeFloat64Array(asynUser *pasynUser, epicsFloat64 *value, size_t nElements);
     void createAsynParams(void);
 
     // These are functions for profile moves.
-    asynStatus initializeProfile(size_t maxProfilePoints);
+    asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
     asynStatus buildProfile();
     asynStatus executeProfile();
     asynStatus abortProfile();
@@ -59,6 +68,13 @@ protected:
     int AUTOMATION1_C_Velocity_;
     int AUTOMATION1_C_FError_;
     int AUTOMATION1_C_ExecuteCommand_;
+    int AUTOMATION1_PM_PulseMode_;
+    int AUTOMATION1_PM_PulsePos_;
+    int AUTOMATION1_PM_NumPulses_;
+    int AUTOMATION1_PM_PulseDir_;
+    int AUTOMATION1_PM_PulseLen_;
+    int AUTOMATION1_PM_PulseSrc_;
+    int AUTOMATION1_PM_PulseAxis_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:
@@ -75,6 +91,11 @@ private:
     int numDataPoints_;
     // The ratio of recorded data points to profile waypoints
     int displayPointSpacing_;
+    //
+    int numPulses_;
+    size_t maxProfilePulses_;
+    double *profilePulses_;
+    double *profilePulseDisplacements_;
     
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;

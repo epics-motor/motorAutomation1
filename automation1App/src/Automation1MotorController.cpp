@@ -95,6 +95,14 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_C_VelocityString,       asynParamFloat64,   &AUTOMATION1_C_Velocity_);
     createParam(AUTOMATION1_C_FErrorString,         asynParamFloat64,   &AUTOMATION1_C_FError_);
     createParam(AUTOMATION1_C_ExecuteCommandString, asynParamOctet,     &AUTOMATION1_C_ExecuteCommand_);
+    //
+    createParam(AUTOMATION1_PM_PulseModeString,    asynParamInt32,        &AUTOMATION1_PM_PulseMode_);
+    createParam(AUTOMATION1_PM_PulsePosString,     asynParamFloat64Array, &AUTOMATION1_PM_PulsePos_);
+    createParam(AUTOMATION1_PM_NumPulsesString,    asynParamInt32,        &AUTOMATION1_PM_NumPulses_);
+    createParam(AUTOMATION1_PM_PulseDirString,     asynParamInt32,        &AUTOMATION1_PM_PulseDir_);
+    createParam(AUTOMATION1_PM_PulseLenString,     asynParamFloat64,      &AUTOMATION1_PM_PulseLen_);
+    createParam(AUTOMATION1_PM_PulseSrcString,     asynParamInt32,        &AUTOMATION1_PM_PulseSrc_);
+    createParam(AUTOMATION1_PM_PulseAxisString,    asynParamInt32,        &AUTOMATION1_PM_PulseAxis_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -177,6 +185,34 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
     return asynSuccess;
 }
 
+/** Called when asyn clients call pasynFloat64Array->write().
+  * \param[in] pasynUser pasynUser structure that encodes the reason and address.
+  * \param[in] value Pointer to the array to write.
+  * \param[in] nElements Number of elements to write. */
+asynStatus Automation1MotorController::writeFloat64Array(asynUser *pasynUser, epicsFloat64 *value,
+                                                  size_t nElements)
+{
+    int function = pasynUser->reason;
+    asynMotorAxis *pAxis;
+    asynStatus status = asynSuccess;
+    static const char *functionName = "writeFloat64Array";
+    
+    pAxis = getAxis(pasynUser);
+    if (!pAxis) return asynError;
+    
+    if (function == AUTOMATION1_PM_PulsePos_) {
+        // Just copy the positions for now; calculations on the positions will occur when the profile is built
+        memcpy(profilePulses_, value, nElements*sizeof(double));
+        // Do we want to store nElements?  The user might change (shorten) the number of pulses after writing the array.
+        numPulses_ = nElements;
+    } 
+    else {
+        status = asynMotorController::writeFloat64Array(pasynUser, value, nElements);
+    }
+    return status;
+}
+
+
 /*  * Returns a pointer to an Automation1 axis object.
     * Returns NULL if the axis number is invalid.
     *
@@ -187,8 +223,16 @@ Automation1MotorAxis* Automation1MotorController::getAxis(int axisNo)
     return static_cast<Automation1MotorAxis*>(asynMotorController::getAxis(axisNo));
 }
 
-asynStatus Automation1MotorController::initializeProfile(size_t maxProfilePoints)
+
+asynStatus Automation1MotorController::initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses)
 {
+    // Initialize max pulses array here, since the base class method only initializes the time, position, readback, and following-error arrays
+    maxProfilePulses_ = maxProfilePulses;
+    if (profilePulses_) free(profilePulses_);
+    profilePulses_ = (double *)calloc(maxProfilePulses, sizeof(double));
+    if (profilePulseDisplacements_) free(profilePulseDisplacements_);
+    profilePulseDisplacements_ = (double *)calloc(maxProfilePulses, sizeof(double));
+    
     return asynMotorController::initializeProfile(maxProfilePoints);
 }
 
@@ -198,6 +242,8 @@ asynStatus Automation1MotorController::buildProfile()
     bool buildOK = true;
     int numPoints;
     int numPulses;
+    int startPulses;
+    int endPulses;
     int timeMode;
     int buildStatus;
     int moveMode;
@@ -210,6 +256,14 @@ asynStatus Automation1MotorController::buildProfile()
     double distance;
     double preVelocity[MAX_AUTOMATION1_AXES];
     double postVelocity[MAX_AUTOMATION1_AXES];
+    // PSO stuff
+    int pulseMode;
+    //double* pulsePos;
+    int pulseDir;
+    double pulseLen;
+    int pulseSrc;
+    int pulseAxis;
+    
     std::string profileMoveFileContents;
     Automation1MotorAxis* axis;
     // for troubleshooting
@@ -221,11 +275,21 @@ asynStatus Automation1MotorController::buildProfile()
     setStringParam(profileBuildMessage_, "");
     getIntegerParam(profileNumPoints_, &numPoints);
     getIntegerParam(profileNumPulses_, &numPulses);
+    getIntegerParam(profileNumPulses_, &startPulses);
+    getIntegerParam(profileNumPulses_, &endPulses);
     getIntegerParam(profileTimeMode_, &timeMode);
     getDoubleParam(profileFixedTime_, &timePerPoint);
     // Acceleration is actually acceleration time (unit: seconds)
     getDoubleParam(profileAcceleration_, &accelerationTime);
     getIntegerParam(profileMoveMode_, &moveMode);
+    // PSO stuff
+    getIntegerParam(AUTOMATION1_PM_PulseMode_, &pulseMode);
+    //int AUTOMATION1_PM_PulsePos_;
+    getIntegerParam(AUTOMATION1_PM_PulseDir_, &pulseDir);
+    getDoubleParam(AUTOMATION1_PM_PulseLen_, &pulseLen);
+    getIntegerParam(AUTOMATION1_PM_PulseSrc_, &pulseSrc);
+    getIntegerParam(AUTOMATION1_PM_PulseAxis_, &pulseAxis);    
+    
     callParamCallbacks();
 
     // Call the base class method to initialize the time array.  In fixed mode this sets each element to the value of the profileFixedTime_ parameter.
@@ -252,7 +316,7 @@ asynStatus Automation1MotorController::buildProfile()
      * TODO: where to check for max acceleration? (min acceleration?)
      */
     
-    // calculate the pre and post distance
+    // calculate the pre, post, and total distance
     if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
     {
         for (i = 0; i < numUsedAxes; i++)
@@ -261,20 +325,26 @@ asynStatus Automation1MotorController::buildProfile()
             axis = pAxes_[idx];
             
             // In absolute move mode, the difference between the first two profile points is the distance for the first segment
-            distance = pAxes_[idx]->profilePositions_[1] - pAxes_[idx]->profilePositions_[0];
+            distance = axis->profilePositions_[1] - axis->profilePositions_[0];
             preVelocity[idx] = distance / profileTimes_[0];
             
             axis->profilePreDistance_ = 0.5 * preVelocity[idx] * accelerationTime;
-            axis->profilePrePosition_ = pAxes_[idx]->profilePositions_[0] - axis->profilePreDistance_;
+            axis->profilePrePosition_ = axis->profilePositions_[0] - axis->profilePreDistance_;
             
             // In absolute move mode, the difference between the last two profile points is the distance of the last segment
-            distance = pAxes_[idx]->profilePositions_[numPoints-1] - 
-                       pAxes_[idx]->profilePositions_[numPoints-2];
+            distance = axis->profilePositions_[numPoints-1] - 
+                       axis->profilePositions_[numPoints-2];
             // The 2nd-to-last profile time is used, since num segments = num points - 1
             postVelocity[idx] = distance / profileTimes_[numPoints-2];
 
             axis->profilePostDistance_ = 0.5 * postVelocity[idx] * accelerationTime;
-            axis->profilePostPosition_ = pAxes_[idx]->profilePositions_[numPoints-1] + axis->profilePostDistance_;
+            axis->profilePostPosition_ = axis->profilePositions_[numPoints-1] + axis->profilePostDistance_;
+            
+            /*
+             *  The total user-specified distance is needed for the PSO calculation
+             */
+            // The total distance is the difference between the last and first positions
+            axis->profileTotalDistance_ = axis->profilePositions_[numPoints-1] - axis->profilePositions_[0];
         }
     }
     else
@@ -285,19 +355,29 @@ asynStatus Automation1MotorController::buildProfile()
             axis = pAxes_[idx];
             
             // In relative move mode, the first position is the distance for the first segment
-            distance = pAxes_[idx]->profilePositions_[0];
+            distance = axis->profilePositions_[0];
             preVelocity[idx] = distance / profileTimes_[0];
             
             axis->profilePreDistance_ = 0.5 * preVelocity[idx] * accelerationTime;
             axis->profilePrePosition_ = -axis->profilePreDistance_;
             
             // In relative move mode, the second-to-last position is the distance for the last segment and the last point should be ignored
-            distance = pAxes_[idx]->profilePositions_[numPoints-2];
+            distance = axis->profilePositions_[numPoints-2];
             // The 2nd-to-last profile time is used, since num segments = num points - 1
             postVelocity[idx] = distance / profileTimes_[numPoints-2];
             
             axis->profilePostDistance_ = 0.5 * postVelocity[idx] * accelerationTime;
             axis->profilePostPosition_ = axis->profilePostDistance_;
+            
+            /*
+             *  The total user-specified distance is needed for the PSO calculation
+             */
+            // The total distance is the sum of all the displacements
+            axis->profileTotalDistance_ = 0.0;
+            for (j=0; j < (numPoints-1); j++)
+            {
+                axis->profileTotalDistance_ += axis->profilePositions_[j];
+            }
         }
     }
     
@@ -375,7 +455,131 @@ asynStatus Automation1MotorController::buildProfile()
             goto done;
         }
     }
+    
+    // Do we have all the info we need to prepare the PSO here?
+    // IAMHERE
+    asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: pulseMode = %i, pulseAxis = %i\n", driverName, functionName, pulseMode, pulseAxis);
+    asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: numPulses = %i, numPulses_ = %i\n", driverName, functionName, numPulses, numPulses_);
+    asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s: pulseSrc = %i, pulseDir = %i, pulseLen = %lf\n", driverName, functionName, pulseSrc, pulseDir, pulseLen);   
+    
+    // Note: numPulses is used instead of numPulses_ (the number of elements written to the pulse position array)
+    // because the user might want to reduce the number of pulses without changing the array.
+    
+    
+    /*
+     * Turn the profilePulses_ array into an array of displacements in the correct format
+     * 
+     * Notes: 
+     *   * user specified positions will be in EPICS user units
+     *   * controller pulse displacements start at the pre profile position, NOT the user-specified start position
+     */
+    // User-specified positions will be in EPICS user units
+    axis = pAxes_[pulseAxis];
+    if (pulseMode == 0)
+    {
+        /* Fixed Mode (divide trajectory by numPulses) */
+        
+        double pulseSpacing;
+        // Assume that numPulses isn't zero for now
+        pulseSpacing = axis->profileTotalDistance_ / numPulses;
+        
+        // The 1st pulse always occurs after the pre profile displacement 
+        profilePulseDisplacements_[0] = axis->profilePreDistance_;
+        // The remaining pulses are evenly spaced
+        for (i=1; i < numPulses; i++)
+        {
+            profilePulseDisplacements_[i] = pulseSpacing;
+        }
+    } else if (pulseMode == 1)
+    {
+        /* Array Mode (convert array into displacements) */
 
+        if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+        {
+            profilePulseDisplacements_[0] = profilePulses_[0] - axis->profilePrePosition_;
+            for (i=1; i < numPulses; i++)
+            {
+                profilePulseDisplacements_[i] = profilePulses_[i] - profilePulses_[i-1];
+            }
+        }
+        else
+        {
+            profilePulseDisplacements_[0] = axis->profilePreDistance_ + profilePulses_[0];
+            for (i=1; i < numPulses; i++)
+            {
+                profilePulseDisplacements_[i] = profilePulses_[i];
+            }
+        }
+    } else if (pulseMode == 2)
+    {
+        /* TrajPts Mode (convert traj point positions into displacements) */
+        
+        if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
+        {
+            double totalPulseDistance, pulseSpacing;
+            totalPulseDistance = axis->profilePositions_[endPulses] - axis->profilePositions_[startPulses];
+            pulseSpacing = totalPulseDistance / numPulses;
+            
+            profilePulseDisplacements_[0] = axis->profilePositions_[startPulses] - axis->profilePrePosition_;
+            for (i=1; i < numPulses; i++)
+            {
+                profilePulseDisplacements_[i] = profilePulseDisplacements_[i-1] + pulseSpacing;
+            }
+        }
+        else
+        {
+            profilePulseDisplacements_[0] = axis->profilePreDistance_;
+            // Does startPulses = n mean to send a pulse at the start or end of the nth segment?  Assume end for now.
+            for (i=0; i <= startPulses; i++)
+            {
+                profilePulseDisplacements_[0] += axis->profilePositions_[i];
+            }
+            
+            double remainingPulseDistance, pulseSpacing;
+            remainingPulseDistance = 0.0;
+            for (i=startPulses+1; i <= endPulses; i++)
+            {
+                remainingPulseDistance += axis->profilePositions_[i];
+            }
+            
+            pulseSpacing = remainingPulseDistance / numPulses;
+            
+            for (i=0; i < numPulses; i++)
+            {
+                profilePulseDisplacements_[i] = pulseSpacing;
+            }
+        }
+    } else if (pulseMode == 3)
+    {
+        // None Mode - what should be done in this case?  Set numPulses to zero?  Zero the pulse array?
+    } 
+    
+    
+    /*
+     * Commands sent by EnsembleTrajectoryScan.st
+     * 
+    PSOCONTROL @0 RESET
+    #
+    PSOTRACK @0 INPUT 3
+    #
+    PSOARRAY @0,50,8000
+    #
+    PSOPULSE @0 TIME 1.50,1.00
+    #
+    PSOOUTPUT @0 PULSE
+    #
+    PSOTRACK @0 DIRECTION 2
+    #
+    PSODISTANCE @0 ARRAY
+    #
+    PSOCONTROL @0 ARM
+    #
+    */ 
+    
+    
+    
+    
+    
     // Currently the only way to guarantee timing using the C API is to upload a file to the
     // controller and execute it on a separate task.  This string is used to assemble the file
     // contents in memory.
@@ -829,6 +1033,7 @@ done:
     return readbackOK ? asynSuccess : asynError;
 }
 
+
 asynStatus Automation1MotorController::poll()
 {
     Automation1DataCollectionStatus dataCollectionStatus;
@@ -920,7 +1125,7 @@ void Automation1MotorController::logErrorV(int messageIndex, const char* fmt, st
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR, "[Automation1 Driver] %s\n", buffer);
 }
 
-asynStatus Automation1CreateProfile(const char *portName, int maxPoints)
+asynStatus Automation1CreateProfile(const char *portName, int maxPoints, int maxPulses)
 {
     Automation1MotorController *pC;
     static const char *functionName = "Automation1CreateProfile";
@@ -932,21 +1137,22 @@ asynStatus Automation1CreateProfile(const char *portName, int maxPoints)
                functionName, portName);
         return asynError;
     }
-    pC->initializeProfile(maxPoints);
+    pC->initializeProfile(maxPoints, maxPulses);
     return asynSuccess;
 }
 
 // Profile Setup arguments
 static const iocshArg Automation1CreateProfileArg0 = {"Port name", iocshArgString};
 static const iocshArg Automation1CreateProfileArg1 = {"Max points", iocshArgInt};
+static const iocshArg Automation1CreateProfileArg2 = {"Max pulses", iocshArgInt};
 
-static const iocshArg* const Automation1CreateProfileArgs[2] = {&Automation1CreateProfileArg0, &Automation1CreateProfileArg1};
+static const iocshArg* const Automation1CreateProfileArgs[3] = {&Automation1CreateProfileArg0, &Automation1CreateProfileArg1, &Automation1CreateProfileArg2};
 
-static const iocshFuncDef configAutomation1Profile = {"Automation1CreateProfile", 2, Automation1CreateProfileArgs};
+static const iocshFuncDef configAutomation1Profile = {"Automation1CreateProfile", 3, Automation1CreateProfileArgs};
 
 static void configAutomation1ProfileCallFunc(const iocshArgBuf* args)
 {
-    Automation1CreateProfile(args[0].sval, args[1].ival);
+    Automation1CreateProfile(args[0].sval, args[1].ival, args[2].ival);
 }
 
 // Code for iocsh registration
