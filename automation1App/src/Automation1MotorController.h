@@ -53,11 +53,11 @@ public:
 
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
+    asynStatus definePulses(int pulseAxis, size_t numPulses);
     asynStatus buildProfile();
     asynStatus executeProfile();
     asynStatus abortProfile();
     asynStatus readbackProfile();
-
     asynStatus poll() override;
 protected:
 
@@ -95,6 +95,7 @@ private:
     int numPulses_;
     size_t maxProfilePulses_;
     double *profilePulses_;
+    double *profilePulsesUser_;
     double *profilePulseDisplacements_;
     
     // Axes to be used in a profile move.

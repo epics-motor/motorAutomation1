@@ -27,6 +27,7 @@ public:
     asynStatus poll(bool* moving);
     asynStatus setPosition(double position);
     asynStatus setClosedLoop(bool closedLoop);
+    asynStatus defineProfile(double *positions, size_t numPoints);
 
 private:
     // Pointer to asynMotorController to which the axis belongs.
