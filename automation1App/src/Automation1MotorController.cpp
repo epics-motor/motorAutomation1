@@ -323,9 +323,13 @@ asynStatus Automation1MotorController::buildProfile()
     int pulseAxis;
     
     std::string profileMoveFileContents;
+    std::string pulseFileContents;
+    std::string positionFileContents;
     Automation1MotorAxis* axis;
     // for troubleshooting
     std::ofstream file("epics_profile_move.ascript");
+    std::ofstream pulseFile("epics_pulses.txt");
+    std::ofstream positionFile("epics_positions.txt");
     static const char *functionName="buildProfile";
 
     setIntegerParam(profileBuildState_, PROFILE_BUILD_BUSY);
@@ -648,6 +652,45 @@ asynStatus Automation1MotorController::buildProfile()
         // None Mode - what should be done in this case?  Set numPulses to zero?  Zero the pulse array?
     } 
     
+    /*
+     * Write pulse positions to a text file on the controller
+     */
+    if (pulseMode < 3)
+    {
+        pulseFileContents.reserve(numPulses * 15 + 18);
+        pulseFileContents.append("# pulseAxis = ");
+        pulseFileContents.append(std::to_string(pulseAxis));
+        pulseFileContents.append("\n");
+        for (i=0; i < numPulses; i++)
+        {
+            pulseFileContents.append(std::to_string(profilePulseDisplacements_[i]));
+            pulseFileContents.append("\n");
+        }
+    
+        // Write the file to the IOC's startup dir for troubleshooting
+        pulseFile << pulseFileContents;
+        pulseFile.close();
+    
+        // This command writes the file to the controller.  Note that if the profile move file
+        // already exists, it will be overwritten.
+        if (!Automation1_Files_WriteBytes(controller_,
+            "epics_pulses.txt",
+            reinterpret_cast<const uint8_t*>(pulseFileContents.data()),
+            pulseFileContents.size()))
+        {
+            buildOK = false;
+            logApiError(profileBuildMessage_, "Could not write pulse file to controller");
+            goto done;
+        }
+    }
+    
+    /*
+     * Write motor positions to a text file on the controller
+     */
+    
+    
+    
+    
     // Currently the only way to guarantee timing using the C API is to upload a file to the
     // controller and execute it on a separate task.  This string is used to assemble the file
     // contents in memory.
@@ -700,6 +743,11 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("SetupTaskTargetMode(TargetMode.Incremental)\n");
     }
     
+    //
+    profileMoveFileContents.append("var $fileHandle as handle\n");
+    profileMoveFileContents.append("var $dataHeader as string\n");
+    profileMoveFileContents.append("var $index as integer\n");
+    
     if (pulseMode < 3)
     {    
         // Declare variables
@@ -718,16 +766,24 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append(std::to_string(pulseSrc));
         profileMoveFileContents.append("])\n");
         
+        // Read the pulse displacements (in controller units) from a file
+        profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_pulses.txt\", FileMode.Read)\n");
+        profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
+        profileMoveFileContents.append("$index = 0\n");
+        profileMoveFileContents.append("while (true)\n");
+        profileMoveFileContents.append("\tvar $stringValue as string\n");
+        profileMoveFileContents.append("\t$stringValue = FileTextReadLine($fileHandle)\n");
+        profileMoveFileContents.append("\tif (StringEquals($stringValue, \"\"))\n");
+        profileMoveFileContents.append("\t\tbreak\n");
+        profileMoveFileContents.append("\telse\n");
+        profileMoveFileContents.append("\t\t$pulseDistances[$index] = Abs(Round(UnitsToCounts($pulseAxis, StringToReal($stringValue))))\n");
+        profileMoveFileContents.append("\t\t$index = $index + 1\n");
+        profileMoveFileContents.append("\tend\n");
+        profileMoveFileContents.append("end\n");
+        profileMoveFileContents.append("FileClose($fileHandle)\n");
+        
         // Write the event distances to the drive array
         // Note: event distances must have positive integer values
-        for (i=0; i<numPulses; i++)
-        {
-            profileMoveFileContents.append("$pulseDistances[");
-            profileMoveFileContents.append(std::to_string(i));
-            profileMoveFileContents.append("] = Abs(Round(UnitsToCounts($pulseAxis, ");
-            profileMoveFileContents.append(std::to_string(profilePulseDisplacements_[i]));
-            profileMoveFileContents.append(")))\n");
-        }
         profileMoveFileContents.append("DriveArrayWrite($pulseAxis, $pulseDistances, 0, ");
         profileMoveFileContents.append(std::to_string(numPulses));
         profileMoveFileContents.append(", DriveArrayType.PsoDistanceEventDistances)\n");
@@ -851,8 +907,8 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("end");
     
     // Write the file to the IOC's startup dir for troubleshooting
-    //file << profileMoveFileContents;
-    //file.close();
+    file << profileMoveFileContents;
+    file.close();
     
     // This command writes the file to the controller.  Note that if the profile move file
     // already exists, it will be overwritten.
