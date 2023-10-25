@@ -910,6 +910,7 @@ asynStatus Automation1MotorController::buildProfile()
     
     // Read the times from a file
     profileMoveFileContents.append("\n// Read times from a text file\n");
+    profileMoveFileContents.append("CriticalSectionStart()\n");
     profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_times.txt\", FileMode.Read)\n");
     profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
     profileMoveFileContents.append("$index = 0\n");
@@ -924,9 +925,11 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("\tend\n");
     profileMoveFileContents.append("end\n");
     profileMoveFileContents.append("FileClose($fileHandle)\n");
-    
+    profileMoveFileContents.append("CriticalSectionEnd()\n");
+
     // Read the positions from a file
     profileMoveFileContents.append("\n// Read positions from a text file\n");
+    profileMoveFileContents.append("CriticalSectionStart()\n");
     profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_positions.txt\", FileMode.Read)\n");
     profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
     profileMoveFileContents.append("$index = 0\n");
@@ -950,11 +953,13 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("\tend\n");
     profileMoveFileContents.append("end\n");
     profileMoveFileContents.append("FileClose($fileHandle)\n");
+    profileMoveFileContents.append("CriticalSectionEnd()\n");
     
     if (pulseMode < 3)
     {    
         // Read the pulse displacements (in controller units) from a file
         profileMoveFileContents.append("\n// Read pulse displacements from a text file\n");
+        profileMoveFileContents.append("CriticalSectionStart()\n");
         profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_pulses.txt\", FileMode.Read)\n");
         profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
         profileMoveFileContents.append("$index = 0\n");
@@ -969,6 +974,7 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("\tend\n");
         profileMoveFileContents.append("end\n");
         profileMoveFileContents.append("FileClose($fileHandle)\n");
+        profileMoveFileContents.append("CriticalSectionEnd()\n");
     }
     
     /*
