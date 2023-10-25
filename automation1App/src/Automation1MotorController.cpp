@@ -823,10 +823,15 @@ asynStatus Automation1MotorController::buildProfile()
     // Note: Preallocation is needed to avoid memory issues that can occur when appending
     //       large amounts of content to a string. 128 might be overkill, so if there are
     //       issues with memory usage later on, this value should be changed.
-    profileMoveFileContents.reserve(numPoints * 128);
+    profileMoveFileContents.reserve(200 * 128);
 
     profileMoveFileContents.append("program\n");
-
+    
+    /*
+     * Declare variables
+     */
+    
+    profileMoveFileContents.append("\n// Declare variables\n");
     // This constructs a string that will become an array of ints that represent the axes
     // on which we want to operate in the Aeroscript program.
     profileMoveFileContents.append("var $axes[] as axis = [");
@@ -844,6 +849,37 @@ asynStatus Automation1MotorController::buildProfile()
         }
     }
     
+    //
+    profileMoveFileContents.append("var $fileHandle as handle\n");
+    profileMoveFileContents.append("var $dataHeader as string\n");
+    profileMoveFileContents.append("var $index as integer\n");
+    profileMoveFileContents.append("var $axisIndex as integer\n");
+    // the times array is 1D
+    profileMoveFileContents.append("var $segmentTimes[");
+    profileMoveFileContents.append(std::to_string(numPoints+1));
+    profileMoveFileContents.append("] as real\n");
+    // the waypoints array is 2D
+    profileMoveFileContents.append("var $waypoints[");
+    profileMoveFileContents.append(std::to_string(numPoints+1));
+    profileMoveFileContents.append("][");
+    profileMoveFileContents.append(std::to_string(numUsedAxes));
+    profileMoveFileContents.append("] as real\n");
+    if (pulseMode < 3)
+    {    
+        // Declare variables
+        profileMoveFileContents.append("var $pulseAxis as axis = @");
+        profileMoveFileContents.append(std::to_string(pulseAxis));
+        profileMoveFileContents.append("\n");
+        profileMoveFileContents.append("var $pulseDistances[");
+        profileMoveFileContents.append(std::to_string(numPulses));
+        profileMoveFileContents.append("] as real\n");
+    }
+    
+    /*
+     * Configure the task
+     */
+    
+    profileMoveFileContents.append("\n// Configure the task\n");
     // In order to run Pt moves, the task that will run the moves must have "3-position / 1-velocity"
     // interpolation mode (task value 1).  By default, the task is in "2-position / 2-velocity"
     // interpolation mode (task value 0).
@@ -868,23 +904,12 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("SetupTaskTargetMode(TargetMode.Incremental)\n");
     }
     
-    //
-    profileMoveFileContents.append("var $fileHandle as handle\n");
-    profileMoveFileContents.append("var $dataHeader as string\n");
-    profileMoveFileContents.append("var $index as integer\n");
-    profileMoveFileContents.append("var $axisIndex as integer\n");
-    // the times array is 1D
-    profileMoveFileContents.append("var $segmentTimes[");
-    profileMoveFileContents.append(std::to_string(numPoints+1));
-    profileMoveFileContents.append("] as real\n");
-    // the waypoints array is 2D
-    profileMoveFileContents.append("var $waypoints[");
-    profileMoveFileContents.append(std::to_string(numPoints+1));
-    profileMoveFileContents.append("][");
-    profileMoveFileContents.append(std::to_string(numUsedAxes));
-    profileMoveFileContents.append("] as real\n");
+    /*
+     * Read in data from text files
+     */
     
     // Read the times from a file
+    profileMoveFileContents.append("\n// Read times from a text file\n");
     profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_times.txt\", FileMode.Read)\n");
     profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
     profileMoveFileContents.append("$index = 0\n");
@@ -901,6 +926,7 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("FileClose($fileHandle)\n");
     
     // Read the positions from a file
+    profileMoveFileContents.append("\n// Read positions from a text file\n");
     profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_positions.txt\", FileMode.Read)\n");
     profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
     profileMoveFileContents.append("$index = 0\n");
@@ -927,23 +953,8 @@ asynStatus Automation1MotorController::buildProfile()
     
     if (pulseMode < 3)
     {    
-        // Declare variables
-        profileMoveFileContents.append("var $pulseAxis as axis = @");
-        profileMoveFileContents.append(std::to_string(pulseAxis));
-        profileMoveFileContents.append("\n");
-        profileMoveFileContents.append("var $pulseDistances[");
-        profileMoveFileContents.append(std::to_string(numPulses));
-        profileMoveFileContents.append("] as real\n");
-        
-        // Reset all PSO configuration
-        profileMoveFileContents.append("PsoReset($pulseAxis)\n");
-        
-        // Configure the distance module to track primary feedback
-        profileMoveFileContents.append("PsoDistanceConfigureInputs($pulseAxis, [");
-        profileMoveFileContents.append(std::to_string(pulseSrc));
-        profileMoveFileContents.append("])\n");
-        
         // Read the pulse displacements (in controller units) from a file
+        profileMoveFileContents.append("\n// Read pulse displacements from a text file\n");
         profileMoveFileContents.append("$fileHandle = FileOpenText(\"epics_pulses.txt\", FileMode.Read)\n");
         profileMoveFileContents.append("$dataHeader = FileTextReadLine($fileHandle)\n");
         profileMoveFileContents.append("$index = 0\n");
@@ -958,6 +969,23 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("\tend\n");
         profileMoveFileContents.append("end\n");
         profileMoveFileContents.append("FileClose($fileHandle)\n");
+    }
+    
+    /*
+     * Configure PSO
+     */
+    
+    if (pulseMode < 3)
+    {    
+        profileMoveFileContents.append("\n// Configure PSO\n");
+
+        // Reset all PSO configuration
+        profileMoveFileContents.append("PsoReset($pulseAxis)\n");
+        
+        // Configure the distance module to track primary feedback
+        profileMoveFileContents.append("PsoDistanceConfigureInputs($pulseAxis, [");
+        profileMoveFileContents.append(std::to_string(pulseSrc));
+        profileMoveFileContents.append("])\n");
         
         // Write the event distances to the drive array
         // Note: event distances must have positive integer values
@@ -997,6 +1025,12 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("PsoDistanceEventsOn($pulseAxis)\n");
     }
     
+    /*
+     * Do the profile move
+     */
+    
+    profileMoveFileContents.append("\n// Do the profile move\n");
+    
     // We start data collection just before the actual profile moves.
     profileMoveFileContents.append("AppDataCollectionSnapshot()\n");
 
@@ -1009,6 +1043,12 @@ asynStatus Automation1MotorController::buildProfile()
 
     profileMoveFileContents.append("WaitForMotionDone($axes)\n");
     profileMoveFileContents.append("AppDataCollectionStop()\n");
+    
+    /*
+     * Restore task settings
+     */
+    
+    profileMoveFileContents.append("\n// Restore task settings\n");
     profileMoveFileContents.append("ParameterSetTaskValue(");
     profileMoveFileContents.append(std::to_string(PROFILE_MOVE_TASK_INDEX));
     profileMoveFileContents.append(", TaskParameter.MotionInterpolationMode, $motionInterpolationMode)\n");
