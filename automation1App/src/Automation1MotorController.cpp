@@ -48,6 +48,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     profilePulses_ = NULL;
     profilePulsesUser_ = NULL;
     profilePulseDisplacements_ = NULL;
+    fullProfileTimes_ = NULL;
     globalVarOffset_ = 255;
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
@@ -322,6 +323,7 @@ asynStatus Automation1MotorController::buildProfile()
     int i, j, idx;
     bool buildOK = true;
     int numPoints;
+    int numSegments;
     int numPulses;
     int startPulses;
     int endPulses;
@@ -697,6 +699,7 @@ asynStatus Automation1MotorController::buildProfile()
         pulseFile << pulseFileContents;
         pulseFile.close();
     
+        /*
         // This command writes the file to the controller.  Note that if the profile move file
         // already exists, it will be overwritten.
         if (!Automation1_Files_WriteBytes(controller_,
@@ -708,6 +711,7 @@ asynStatus Automation1MotorController::buildProfile()
             logApiError(profileBuildMessage_, "Could not write pulse file to controller");
             goto done;
         }
+        */
     }
     
     /*
@@ -735,55 +739,46 @@ asynStatus Automation1MotorController::buildProfile()
         }
     }
     
-    // TODO: rewrite this loop in terms of the fullProfilePositions index
-    // i = -1 => ramp up ; i = numPoints => ramp down
-    for (i = -1; i <= numPoints; i++)
+    // fullProfileSize_ is the total number of segments in the scan (user-specified + accel & decel)
+    numSegments = (fullProfileSize_ - maxProfilePoints_ + numPoints);
+    
+    for (i = 0; i < numSegments; i++)
     {
-        if (i == numPoints-1)
-        {
-            // Skip the last user-specified point; it isn't meaningful in relative mode since there are only n-1 segments.
-            // In absolute mode the (numPoints-1)th position was already included in the (numPoints-2)th point.
-            continue;
-        }
         for (j = 0; j < numUsedAxes; j++)
         {
             axis = pAxes_[profileAxes_[j]];
-            if (i == -1)
+            
+            if (i == 0)
             {
                 // Ramp up before starting user-specified profile
                 if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
                 {
                     // The ramp up ends at the first (0th) user-specified point
-                    positionFileContents.append(std::to_string(axis->profilePositions_[i+1]));
-                    // Note: i+1 = 0 in this case
-                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i+1];
+                    positionFileContents.append(std::to_string(axis->profilePositions_[i]));
+                    axis->fullProfilePositions_[i] = axis->profilePositions_[i];
                 }
                 else
                 {
                     // The ramp up ends at after returning the pre distance
                     positionFileContents.append(std::to_string(axis->profilePreDistance_));
-                    // Note: i+1 = 0 in this case
-                    axis->fullProfilePositions_[i+1] = axis->profilePreDistance_;
+                    axis->fullProfilePositions_[i] = axis->profilePreDistance_;
                 }
                 // The ramp up period always uses the user-specified acceleration time
                 segmentTime = accelerationTime;
-                
             }
-            else if (i == numPoints)
+            else if (i == (numSegments-1))
             {
                 // Ramp down after completing user-specified profile
                 if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
                 {
                     // The ramp down ends at the post position
                     positionFileContents.append(std::to_string(axis->profilePostPosition_));
-                    // Note: i is used instead of i+1 here because the numPoints-1 point was skipped
                     axis->fullProfilePositions_[i] = axis->profilePostPosition_;
                 }
                 else
                 {
                     // The ramp down ends at after traveling the post distance
                     positionFileContents.append(std::to_string(axis->profilePostDistance_));
-                    // Note: i is used instead of i+1 here because the numPoints-1 point was skipped
                     axis->fullProfilePositions_[i] = axis->profilePostDistance_;
                 }
                 // The ramp down period always uses the user-specified acceleration time
@@ -793,18 +788,19 @@ asynStatus Automation1MotorController::buildProfile()
             {
                 if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
                 {
-                    // The position for the (i)th segement is the end point for that segment, which is the (i+1)th position
-                    positionFileContents.append(std::to_string(axis->profilePositions_[i+1]));
-                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i+1];
+                    // The position for the (i)th segement is the end point for that segment, which is the (i)th user-specified position
+                    positionFileContents.append(std::to_string(axis->profilePositions_[i]));
+                    axis->fullProfilePositions_[i] = axis->profilePositions_[i];
                 }
                 else
                 {
-                    // The displacement for th (i)th segment is the (i)th position
-                    positionFileContents.append(std::to_string(axis->profilePositions_[i]));
-                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i];
+                    // The displacement for the (i)th segment is the (i-1)th user-specified position
+                    positionFileContents.append(std::to_string(axis->profilePositions_[i-1]));
+                    axis->fullProfilePositions_[i] = axis->profilePositions_[i-1];
                 }
                 segmentTime = profileTimes_[i];
             }
+            
             if (j != numUsedAxes - 1)
             {
                 positionFileContents.append(",");
@@ -817,13 +813,14 @@ asynStatus Automation1MotorController::buildProfile()
         // Automation1 assumes that this value is in ms, not s, so we perform the conversion.
         timeFileContents.append(std::to_string(segmentTime * 1000));
         timeFileContents.append("\n");
-        fullProfileTimes_[i+1] = segmentTime * 1000;
+        fullProfileTimes_[i] = segmentTime * 1000;
     }
-
+    
     // Write the file to the IOC's startup dir for troubleshooting
     timeFile << timeFileContents;
     timeFile.close();
     
+    /*
     // This command writes the file to the controller.  Note that if the time file
     // already exists, it will be overwritten.
     if (!Automation1_Files_WriteBytes(controller_,
@@ -835,11 +832,13 @@ asynStatus Automation1MotorController::buildProfile()
         logApiError(profileBuildMessage_, "Could not write time file to controller");
         goto done;
     }
+    */
     
     // Write the file to the IOC's startup dir for troubleshooting
     positionFile << positionFileContents;
     positionFile.close();
     
+    /*
     // This command writes the file to the controller.  Note that if the positions file
     // already exists, it will be overwritten.
     if (!Automation1_Files_WriteBytes(controller_,
@@ -848,9 +847,10 @@ asynStatus Automation1MotorController::buildProfile()
         positionFileContents.size()))
     {
         buildOK = false;
-        logApiError(profileBuildMessage_, "Could not write time file to controller");
+        logApiError(profileBuildMessage_, "Could not write time file to controller");fullProfileSize_
         goto done;
     }
+    */
     
     /*
      * Write the arrays to global variables on the controller
@@ -928,14 +928,18 @@ asynStatus Automation1MotorController::buildProfile()
     }
     
     //
+    /*
     profileMoveFileContents.append("var $fileHandle as handle\n");
     profileMoveFileContents.append("var $dataHeader as string\n");
+    */
     profileMoveFileContents.append("var $index as integer\n");
     profileMoveFileContents.append("var $axisIndex as integer\n");
+    /*
     // the times array is 1D
     profileMoveFileContents.append("var $segmentTimes[");
     profileMoveFileContents.append(std::to_string(numPoints+1));
     profileMoveFileContents.append("] as real\n");
+    */
     // the waypoints array is 2D
     profileMoveFileContents.append("var $waypoints[");
     profileMoveFileContents.append(std::to_string(numPoints+1));
@@ -952,6 +956,28 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append(std::to_string(numPulses));
         profileMoveFileContents.append("] as real\n");
     }
+    profileMoveFileContents.append("var $positionOffsets[] as integer = [");
+    for (i = 0; i < numUsedAxes; i++)
+    {
+        idx = profileAxes_[i];
+        axis = pAxes_[idx];
+        
+        profileMoveFileContents.append(std::to_string(axis->fullProfilePositionsIndex_));
+        if (i != numUsedAxes - 1)
+        {
+            profileMoveFileContents.append(",");
+        }
+        else
+        {
+            profileMoveFileContents.append("]\n");
+        }
+    }
+    profileMoveFileContents.append("var $timeOffset as integer = ");
+    profileMoveFileContents.append(std::to_string(fullProfileTimesIndex_));
+    profileMoveFileContents.append("\n");
+    profileMoveFileContents.append("var $pulseOffset as integer = ");
+    profileMoveFileContents.append(std::to_string(profilePulseDisplacementsIndex_));
+    profileMoveFileContents.append("\n");
     
     /*
      * Configure the task
@@ -986,6 +1012,7 @@ asynStatus Automation1MotorController::buildProfile()
      * Read in data from text files
      */
     
+    /*
     // Read the times from a file
     profileMoveFileContents.append("\n// Read times from a text file\n");
     profileMoveFileContents.append("CriticalSectionStart()\n");
@@ -1004,7 +1031,9 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("end\n");
     profileMoveFileContents.append("FileClose($fileHandle)\n");
     profileMoveFileContents.append("CriticalSectionEnd()\n");
-
+    */
+    
+    /*
     // Read the positions from a file
     profileMoveFileContents.append("\n// Read positions from a text file\n");
     profileMoveFileContents.append("CriticalSectionStart()\n");
@@ -1032,9 +1061,28 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("end\n");
     profileMoveFileContents.append("FileClose($fileHandle)\n");
     profileMoveFileContents.append("CriticalSectionEnd()\n");
+    */
+    
+    /*
+     * Read in data from global variable arrays
+     */
+    profileMoveFileContents.append("\n// Read in data from global variable arrays\n");
+    
+    // Create the waypoints array from global variables
+    profileMoveFileContents.append("CriticalSectionStart()\n");
+    profileMoveFileContents.append("for $index = 0 to ");
+    profileMoveFileContents.append(std::to_string((fullProfileSize_ - maxProfilePoints_ + numPoints) - 1));
+    profileMoveFileContents.append("\n");
+    profileMoveFileContents.append("\tfor $axisIndex = 0 to (");
+    profileMoveFileContents.append(std::to_string(numUsedAxes));
+    profileMoveFileContents.append(" - 1)\n");
+    profileMoveFileContents.append("\t\t$waypoints[$index][$axisIndex] = $rglobal[$positionOffsets[$axisIndex]+$index]\n");
+    profileMoveFileContents.append("\tend\n");
+    profileMoveFileContents.append("end\n");
     
     if (pulseMode < 3)
     {    
+        /*
         // Read the pulse displacements (in controller units) from a file
         profileMoveFileContents.append("\n// Read pulse displacements from a text file\n");
         profileMoveFileContents.append("CriticalSectionStart()\n");
@@ -1053,7 +1101,16 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append("end\n");
         profileMoveFileContents.append("FileClose($fileHandle)\n");
         profileMoveFileContents.append("CriticalSectionEnd()\n");
+        */
+        
+        profileMoveFileContents.append("for $index = 0 to ");
+        profileMoveFileContents.append(std::to_string(numPulses-1));
+        profileMoveFileContents.append("\n");
+        profileMoveFileContents.append("\t$pulseDistances[$index] = Abs(Round(UnitsToCounts($pulseAxis, $rglobal[$pulseOffset+$index])))\n");
+        profileMoveFileContents.append("end\n");
     }
+    
+    profileMoveFileContents.append("CriticalSectionEnd()\n");
     
     /*
      * Configure PSO
@@ -1122,7 +1179,7 @@ asynStatus Automation1MotorController::buildProfile()
     profileMoveFileContents.append("for $index = 0 to ");
     profileMoveFileContents.append(std::to_string(numPoints));
     profileMoveFileContents.append("\n");
-    profileMoveFileContents.append("\tMovePt($axes, $waypoints[$index], $segmentTimes[$index])\n");
+    profileMoveFileContents.append("\tMovePt($axes, $waypoints[$index], $rglobal[$timeOffset+$index])\n");
     profileMoveFileContents.append("end\n");
 
     profileMoveFileContents.append("WaitForMotionDone($axes)\n");
