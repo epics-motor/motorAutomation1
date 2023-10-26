@@ -50,6 +50,9 @@ private:
     double profilePostPosition_;
     double profileTotalDistance_;
     
+    double *fullProfilePositions_;
+    int32_t fullProfilePositionsIndex_;
+    
     friend class Automation1MotorController;
 };
 

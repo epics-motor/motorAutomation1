@@ -97,6 +97,11 @@ private:
     double *profilePulses_;
     double *profilePulsesUser_;
     double *profilePulseDisplacements_;
+    int32_t profilePulseDisplacementsIndex_;
+    int fullProfileSize_;
+    double *fullProfileTimes_;
+    int32_t fullProfileTimesIndex_;
+    int32_t globalVarOffset_;
     
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;

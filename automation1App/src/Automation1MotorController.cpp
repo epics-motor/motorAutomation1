@@ -48,6 +48,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     profilePulses_ = NULL;
     profilePulsesUser_ = NULL;
     profilePulseDisplacements_ = NULL;
+    globalVarOffset_ = 255;
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
     createAsynParams();
@@ -279,8 +280,19 @@ asynStatus Automation1MotorController::definePulses(int pulseAxis, size_t numPul
 
 asynStatus Automation1MotorController::initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses)
 {
-    // Initialize max pulses array here, since the base class method only initializes the time, position, readback, and following-error arrays
+    
+    Automation1MotorAxis* pAxis;
+    int idx;
+    // There is one addition point before and after the user-specified trajectory for acceleration & deceleration
+    int accel_decel_segments = 2;
+    
+    //
+    maxProfilePoints_ = maxProfilePoints;
     maxProfilePulses_ = maxProfilePulses;
+    // The full profile size includes the accel/decel segments and omits the last point in the user-specified array, because there are n-1 segments.
+    fullProfileSize_ = maxProfilePoints_ + accel_decel_segments - 1;
+    
+    // Initialize pulse arrays here, since the base class method only initializes the time, position, readback, and following-error arrays
     
     if (profilePulses_) free(profilePulses_);
     profilePulses_ = (double *)calloc(maxProfilePulses, sizeof(double));
@@ -290,6 +302,17 @@ asynStatus Automation1MotorController::initializeProfile(size_t maxProfilePoints
     
     if (profilePulseDisplacements_) free(profilePulseDisplacements_);
     profilePulseDisplacements_ = (double *)calloc(maxProfilePulses, sizeof(double));
+    
+    if (fullProfileTimes_) free(fullProfileTimes_);
+    fullProfileTimes_ = (double *)calloc(fullProfileSize_, sizeof(double));
+    
+    for (idx=0; idx<numAxes_; idx++)
+    {
+        pAxis = getAxis(idx);
+        if (!pAxis) continue;
+        if (pAxis->fullProfilePositions_) free(pAxis->fullProfilePositions_);
+        pAxis->fullProfilePositions_ = (double *)calloc(fullProfileSize_, sizeof(double));
+    }
     
     return asynMotorController::initializeProfile(maxProfilePoints);
 }
@@ -321,6 +344,7 @@ asynStatus Automation1MotorController::buildProfile()
     double pulseLen;
     int pulseSrc;
     int pulseAxis;
+    int32_t globalIdx;
     
     std::string profileMoveFileContents;
     std::string pulseFileContents;
@@ -711,6 +735,7 @@ asynStatus Automation1MotorController::buildProfile()
         }
     }
     
+    // TODO: rewrite this loop in terms of the fullProfilePositions index
     // i = -1 => ramp up ; i = numPoints => ramp down
     for (i = -1; i <= numPoints; i++)
     {
@@ -730,11 +755,15 @@ asynStatus Automation1MotorController::buildProfile()
                 {
                     // The ramp up ends at the first (0th) user-specified point
                     positionFileContents.append(std::to_string(axis->profilePositions_[i+1]));
+                    // Note: i+1 = 0 in this case
+                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i+1];
                 }
                 else
                 {
                     // The ramp up ends at after returning the pre distance
                     positionFileContents.append(std::to_string(axis->profilePreDistance_));
+                    // Note: i+1 = 0 in this case
+                    axis->fullProfilePositions_[i+1] = axis->profilePreDistance_;
                 }
                 // The ramp up period always uses the user-specified acceleration time
                 segmentTime = accelerationTime;
@@ -747,11 +776,15 @@ asynStatus Automation1MotorController::buildProfile()
                 {
                     // The ramp down ends at the post position
                     positionFileContents.append(std::to_string(axis->profilePostPosition_));
+                    // Note: i is used instead of i+1 here because the numPoints-1 point was skipped
+                    axis->fullProfilePositions_[i] = axis->profilePostPosition_;
                 }
                 else
                 {
                     // The ramp down ends at after traveling the post distance
                     positionFileContents.append(std::to_string(axis->profilePostDistance_));
+                    // Note: i is used instead of i+1 here because the numPoints-1 point was skipped
+                    axis->fullProfilePositions_[i] = axis->profilePostDistance_;
                 }
                 // The ramp down period always uses the user-specified acceleration time
                 segmentTime = accelerationTime;
@@ -762,11 +795,13 @@ asynStatus Automation1MotorController::buildProfile()
                 {
                     // The position for the (i)th segement is the end point for that segment, which is the (i+1)th position
                     positionFileContents.append(std::to_string(axis->profilePositions_[i+1]));
+                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i+1];
                 }
                 else
                 {
                     // The displacement for th (i)th segment is the (i)th position
                     positionFileContents.append(std::to_string(axis->profilePositions_[i]));
+                    axis->fullProfilePositions_[i+1] = axis->profilePositions_[i];
                 }
                 segmentTime = profileTimes_[i];
             }
@@ -782,6 +817,7 @@ asynStatus Automation1MotorController::buildProfile()
         // Automation1 assumes that this value is in ms, not s, so we perform the conversion.
         timeFileContents.append(std::to_string(segmentTime * 1000));
         timeFileContents.append("\n");
+        fullProfileTimes_[i+1] = segmentTime * 1000;
     }
 
     // Write the file to the IOC's startup dir for troubleshooting
@@ -814,6 +850,48 @@ asynStatus Automation1MotorController::buildProfile()
         buildOK = false;
         logApiError(profileBuildMessage_, "Could not write time file to controller");
         goto done;
+    }
+    
+    /*
+     * Write the arrays to global variables on the controller
+     *
+     * Automation1_Variables_SetGlobalReals(Automation1Controller controller, int32_t startingGlobalRealIndex, double* realValues, int32_t realValuesLength);
+     */
+    
+    globalIdx = globalVarOffset_;
+    
+    profilePulseDisplacementsIndex_ = globalIdx;
+    // reinterpret_cast<const int32_t>
+    if (!Automation1_Variables_SetGlobalReals(controller_, profilePulseDisplacementsIndex_, profilePulseDisplacements_, numPulses))
+    {
+        buildOK = false;
+        logApiError(profileBuildMessage_, "Could not write pulse dislpacement array to controller");
+        goto done;
+    }
+    globalIdx += maxProfilePulses_;
+    
+    fullProfileTimesIndex_ = globalIdx;
+    if (!Automation1_Variables_SetGlobalReals(controller_, fullProfileTimesIndex_, fullProfileTimes_, (fullProfileSize_ - maxProfilePoints_ + numPoints)))
+    {
+        buildOK = false;
+        logApiError(profileBuildMessage_, "Could not write times array to controller");
+        goto done;
+    }
+    globalIdx += fullProfileSize_;
+    
+    for (i = 0; i < numUsedAxes; i++)
+    {
+        idx = profileAxes_[i];
+        axis = pAxes_[idx];
+        
+        axis->fullProfilePositionsIndex_ = globalIdx;
+        if (!Automation1_Variables_SetGlobalReals(controller_, axis->fullProfilePositionsIndex_, axis->fullProfilePositions_, (fullProfileSize_ - maxProfilePoints_ + numPoints)))
+        {
+            buildOK = false;
+            logApiError(profileBuildMessage_, "Could not write axis positions array to controller");
+            goto done;
+        }
+        globalIdx += fullProfileSize_;
     }
     
     // Currently the only way to guarantee timing using the C API is to upload a file to the
