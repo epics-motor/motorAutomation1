@@ -2,4 +2,5 @@ $(P)$(R)PulseMode
 $(P)$(R)PulseDir
 $(P)$(R)PulseLenUS
 $(P)$(R)PulseSrc
+$(P)$(R)PulseOut
 $(P)$(R)PulseAxis

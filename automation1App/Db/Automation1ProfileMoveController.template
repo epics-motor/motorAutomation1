@@ -63,8 +63,15 @@ record(ao, "$(P)$(R)PulseLenUS") {
 }
 record(longout, "$(P)$(R)PulseSrc") {
     field(DTYP, "asynInt32")
-    field(DESC,"pulse source (1 or 3)")
+    field(DESC, "PsoDistanceInput Enum")
     field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_SRC")
+    field(DOL, "1")
+    field(PINI, "YES")
+}
+record(longout, "$(P)$(R)PulseOut") {
+    field(DTYP, "asynInt32")
+    field(DESC, "PsoOutputPin Enum")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_OUT")
     field(DOL, "1")
     field(PINI, "YES")
 }

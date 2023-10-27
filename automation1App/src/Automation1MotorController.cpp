@@ -107,6 +107,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_PM_PulseDirString,     asynParamInt32,        &AUTOMATION1_PM_PulseDir_);
     createParam(AUTOMATION1_PM_PulseLenString,     asynParamFloat64,      &AUTOMATION1_PM_PulseLen_);
     createParam(AUTOMATION1_PM_PulseSrcString,     asynParamInt32,        &AUTOMATION1_PM_PulseSrc_);
+    createParam(AUTOMATION1_PM_PulseOutString,     asynParamInt32,        &AUTOMATION1_PM_PulseOut_);
     createParam(AUTOMATION1_PM_PulseAxisString,    asynParamInt32,        &AUTOMATION1_PM_PulseAxis_);
 }
 
@@ -345,6 +346,7 @@ asynStatus Automation1MotorController::buildProfile()
     int pulseDir;
     double pulseLen;
     int pulseSrc;
+    int pulseOut;
     int pulseAxis;
     int32_t globalIdx;
     
@@ -378,6 +380,7 @@ asynStatus Automation1MotorController::buildProfile()
     getIntegerParam(AUTOMATION1_PM_PulseDir_, &pulseDir);
     getDoubleParam(AUTOMATION1_PM_PulseLen_, &pulseLen);
     getIntegerParam(AUTOMATION1_PM_PulseSrc_, &pulseSrc);
+    getIntegerParam(AUTOMATION1_PM_PulseOut_, &pulseOut);
     getIntegerParam(AUTOMATION1_PM_PulseAxis_, &pulseAxis);    
     
     callParamCallbacks();
@@ -420,6 +423,7 @@ asynStatus Automation1MotorController::buildProfile()
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseAxis = %i\n", driverName, functionName, pulseAxis);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tnumPulses = %i, numPulses_ = %i\n", driverName, functionName, numPulses, numPulses_);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseSrc = %i\n", driverName, functionName, pulseSrc);
+    asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseOut = %i\n", driverName, functionName, pulseOut);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseDir = %i\n", driverName, functionName, pulseDir);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseLen = %lf\n", driverName, functionName, pulseLen);
     
@@ -1142,6 +1146,11 @@ asynStatus Automation1MotorController::buildProfile()
         // Restrict PSO events to the user-specified direction
         profileMoveFileContents.append("PsoDistanceConfigureAllowedEventDirection($pulseAxis, ");
         profileMoveFileContents.append(std::to_string(pulseDir));
+        profileMoveFileContents.append(")\n");
+        
+        // Configure the output pin
+        profileMoveFileContents.append("PsoOutputConfigureOutput($pulseAxis, ");
+        profileMoveFileContents.append(std::to_string(pulseOut));
         profileMoveFileContents.append(")\n");
         
         // Configure waveform module in pulse mode (50% duty cycle for now)

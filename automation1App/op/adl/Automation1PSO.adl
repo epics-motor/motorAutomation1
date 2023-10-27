@@ -1,12 +1,12 @@
 
 file {
-	name="Automation1PSO.adl"
+	name="/net/s20dserv/xorApps/epics/synApps_6_2_1/support/motorAutomation1-devel/automation1App/op/adl/Automation1PSO.adl"
 	version=030111
 }
 display {
 	object {
-		x=0
-		y=0
+		x=10
+		y=10
 		width=400
 		height=400
 	}
@@ -127,150 +127,167 @@ display {
 	bclr=17
 	label="-More"
 }
-composite {
+text {
 	object {
 		x=65
 		y=109
-		width=280
-		height=140
+		width=175
+		height=24
 	}
-	"composite name"=""
-	children {
-		text {
-			object {
-				x=65
-				y=109
-				width=175
-				height=24
-			}
-			"basic attribute" {
-				clr=14
-				fill="outline"
-			}
-			textix="Pulse Mode"
-		}
-		text {
-			object {
-				x=65
-				y=138
-				width=175
-				height=24
-			}
-			"basic attribute" {
-				clr=14
-				fill="outline"
-			}
-			textix="Pulse Dir"
-		}
-		text {
-			object {
-				x=65
-				y=167
-				width=175
-				height=24
-			}
-			"basic attribute" {
-				clr=14
-				fill="outline"
-			}
-			textix="Pulse Len (us)"
-		}
-		text {
-			object {
-				x=65
-				y=196
-				width=175
-				height=24
-			}
-			"basic attribute" {
-				clr=14
-				fill="outline"
-			}
-			textix="Pulse Source"
-		}
-		text {
-			object {
-				x=65
-				y=225
-				width=175
-				height=24
-			}
-			"basic attribute" {
-				clr=14
-				fill="outline"
-			}
-			textix="Pulse Axis"
-		}
-		menu {
-			object {
-				x=245
-				y=109
-				width=100
-				height=24
-			}
-			control {
-				chan="$(P)$(R)PulseMode"
-				clr=14
-				bclr=51
-			}
-		}
-		menu {
-			object {
-				x=245
-				y=138
-				width=100
-				height=24
-			}
-			control {
-				chan="$(P)$(R)PulseDir"
-				clr=14
-				bclr=51
-			}
-		}
-		"text entry" {
-			object {
-				x=245
-				y=167
-				width=100
-				height=24
-			}
-			control {
-				chan="$(P)$(R)PulseLenUS"
-				clr=14
-				bclr=51
-			}
-			limits {
-			}
-		}
-		"text entry" {
-			object {
-				x=245
-				y=196
-				width=100
-				height=24
-			}
-			control {
-				chan="$(P)$(R)PulseSrc"
-				clr=14
-				bclr=51
-			}
-			limits {
-			}
-		}
-		"text entry" {
-			object {
-				x=245
-				y=225
-				width=100
-				height=24
-			}
-			control {
-				chan="$(P)$(R)PulseAxis"
-				clr=14
-				bclr=51
-			}
-			limits {
-			}
-		}
+	"basic attribute" {
+		clr=14
+		fill="outline"
 	}
+	textix="Pulse Mode"
+}
+text {
+	object {
+		x=65
+		y=138
+		width=175
+		height=24
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+	textix="Pulse Dir"
+}
+text {
+	object {
+		x=65
+		y=167
+		width=175
+		height=24
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+	textix="Pulse Len (us)"
+}
+text {
+	object {
+		x=65
+		y=196
+		width=175
+		height=24
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+	textix="Pulse Source"
+}
+menu {
+	object {
+		x=245
+		y=109
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseMode"
+		clr=14
+		bclr=51
+	}
+}
+menu {
+	object {
+		x=245
+		y=138
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseDir"
+		clr=14
+		bclr=51
+	}
+}
+"text entry" {
+	object {
+		x=245
+		y=167
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseLenUS"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+"text entry" {
+	object {
+		x=245
+		y=196
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseSrc"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+"text entry" {
+	object {
+		x=245
+		y=225
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseOut"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=65
+		y=225
+		width=175
+		height=24
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+	textix="Pulse Output"
+}
+"text entry" {
+	object {
+		x=245
+		y=254
+		width=100
+		height=24
+	}
+	control {
+		chan="$(P)$(R)PulseAxis"
+		clr=14
+		bclr=51
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=65
+		y=254
+		width=175
+		height=24
+	}
+	"basic attribute" {
+		clr=14
+		fill="outline"
+	}
+	textix="Pulse Axis"
 }
