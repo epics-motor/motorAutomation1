@@ -1148,11 +1148,6 @@ asynStatus Automation1MotorController::buildProfile()
         profileMoveFileContents.append(std::to_string(pulseDir));
         profileMoveFileContents.append(")\n");
         
-        // Configure the output pin
-        profileMoveFileContents.append("PsoOutputConfigureOutput($pulseAxis, ");
-        profileMoveFileContents.append(std::to_string(pulseOut));
-        profileMoveFileContents.append(")\n");
-        
         // Configure waveform module in pulse mode (50% duty cycle for now)
         profileMoveFileContents.append("PsoWaveformConfigureMode($pulseAxis, PsoWaveformMode.Pulse)\n");
         profileMoveFileContents.append("PsoWaveformConfigurePulseFixedTotalTime($pulseAxis, ");
@@ -1168,6 +1163,11 @@ asynStatus Automation1MotorController::buildProfile()
         // Select the waveform module output as the PSO output source
         profileMoveFileContents.append("PsoOutputConfigureSource($pulseAxis, PsoOutputSource.Waveform)\n");
         
+        // Configure the output pin - this must come immediately after PsoOutputConfigureSource
+        profileMoveFileContents.append("PsoOutputConfigureOutput($pulseAxis, ");
+        profileMoveFileContents.append(std::to_string(pulseOut));
+        profileMoveFileContents.append(")\n");
+
         // Enable the distance counter
         profileMoveFileContents.append("PsoDistanceCounterOn($pulseAxis)\n");
 
