@@ -1283,7 +1283,7 @@ asynStatus Automation1MotorController::executeProfile()
         positions[i] = axis->profilePrePosition_;
         
         // Query motor record and default axis velocities
-        getDoubleParam(motorVelocity_, profileAxes_[i], &motorRecVelocity);
+        getDoubleParam(profileAxes_[i], motorVelocity_, &motorRecVelocity);
         Automation1_Parameter_GetAxisValue(controller_, profileAxes_[i], Automation1AxisParameterId_DefaultAxisSpeed, &defaultVelocity);
         // The default coordinated speed exceeded the max speed for the axis used during development
         //Automation1_Parameter_GetTaskValue(controller_, profileAxes_[i], Automation1TaskParameterId_DefaultCoordinatedSpeed, &defaultCoordVelocity);
