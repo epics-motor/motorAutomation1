@@ -22,6 +22,8 @@
 #include "Automation1MotorController.h"
 #include "Include/Automation1.h"
 
+static const char *driverName = "Automation1MotorAxis";
+
 /** Creates a new Automation1 axis object.
   * \param[in] pC     Pointer to the Automation1MotorController to which this axis belongs.
   * \param[in] axisNo Index number of this axis, range 0 to pC->numAxes_-1.
@@ -30,6 +32,8 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     : asynMotorAxis(pC, axisNo),
     pC_(pC)
 {
+    fullProfilePositions_ = NULL;
+    
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_DriveStatus, 0);
@@ -261,6 +265,34 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
     setIntegerParam(pC_->motorStatusProblem_,0);	//Clear problem bit if it was set due to "axis not enabled"
     return asynSuccess;
 }
+
+
+/** Function to define the motor positions for a profile move. 
+  * Called when the profileMove positions waveform is processed.
+  * \param[in] positions Array of profile positions for this axis in user units.
+  * \param[in] numPoints The number of positions in the array.
+  */
+asynStatus Automation1MotorAxis::defineProfile(double *positions, size_t numPoints)
+{
+  size_t i;
+  static const char *functionName = "defineProfile";
+  
+  // Call the base class method to convert from EPICS user coordinates to steps
+  asynMotorAxis::defineProfile(positions, numPoints);
+  
+  // Convert from steps to Automation1 units
+  for (i=0; i<numPoints; i++)
+  {
+    profilePositions_[i] = profilePositions_[i] / countsPerUnitParam_;
+  }
+  
+  asynPrint(pasynUser_, ASYN_TRACE_FLOW,
+            "%s:%s: axis=%d, countsPerUnitParam_=%f, profilePositions_[0]=%f\n",
+            driverName, functionName, axisNo_, countsPerUnitParam_, profilePositions_[0]);
+  
+  return asynSuccess;
+}
+
 
 /** Polls the axis.
   *

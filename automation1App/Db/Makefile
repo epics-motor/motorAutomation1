@@ -14,7 +14,7 @@ include $(TOP)/configure/CONFIG
 
 DB += Automation1MotorController.template
 DB += Automation1MotorAxis.template
-
+DB += Automation1ProfileMoveController.template
 
 #----------------------------------------------------
 # If <anyname>.db template is not named <anyname>*.template add

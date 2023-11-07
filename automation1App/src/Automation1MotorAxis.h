@@ -27,6 +27,7 @@ public:
     asynStatus poll(bool* moving);
     asynStatus setPosition(double position);
     asynStatus setClosedLoop(bool closedLoop);
+    asynStatus defineProfile(double *positions, size_t numPoints);
 
 private:
     // Pointer to asynMotorController to which the axis belongs.
@@ -41,7 +42,16 @@ private:
     // to those functions and to asynPrint in this function.
     void logError(const char* driverMessage);
     
-    double countsPerUnitParam_;    
+    double countsPerUnitParam_;
+    
+    double profilePreDistance_;
+    double profilePrePosition_;
+    double profilePostDistance_;
+    double profilePostPosition_;
+    double profileTotalDistance_;
+    
+    double *fullProfilePositions_;
+    int32_t fullProfilePositionsIndex_;
     
     friend class Automation1MotorController;
 };
