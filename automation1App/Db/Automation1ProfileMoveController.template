@@ -54,11 +54,18 @@ record(mbbo, "$(P)$(R)PulseDir") {
     field(TWST, "Neg")
     field(PINI, "YES")
 }
-record(ao, "$(P)$(R)PulseLenUS") {
+record(ao, "$(P)$(R)PulseLenth") {
     field(DTYP, "asynFloat64")
     field(DESC,"pulse length in microseconds")
     field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_LEN")
     field(DOL, "25")
+    field(PINI, "YES")
+}
+record(ao, "$(P)$(R)PulsePeriod") {
+    field(DTYP, "asynFloat64")
+    field(DESC,"pulse period in microseconds")
+    field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_PERIOD")
+    field(DOL, "50")
     field(PINI, "YES")
 }
 record(longout, "$(P)$(R)PulseSrc") {

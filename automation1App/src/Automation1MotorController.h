@@ -30,6 +30,7 @@
 #define AUTOMATION1_PM_NumPulsesString      "AUTOMATION1_PM_NUM_PULSES"
 #define AUTOMATION1_PM_PulseDirString       "AUTOMATION1_PM_PULSE_DIR"
 #define AUTOMATION1_PM_PulseLenString       "AUTOMATION1_PM_PULSE_LEN"
+#define AUTOMATION1_PM_PulsePeriodString    "AUTOMATION1_PM_PULSE_PERIOD"
 #define AUTOMATION1_PM_PulseSrcString       "AUTOMATION1_PM_PULSE_SRC"
 #define AUTOMATION1_PM_PulseOutString       "AUTOMATION1_PM_PULSE_OUT"
 #define AUTOMATION1_PM_PulseAxisString      "AUTOMATION1_PM_PULSE_AXIS"
@@ -74,6 +75,7 @@ protected:
     int AUTOMATION1_PM_NumPulses_;
     int AUTOMATION1_PM_PulseDir_;
     int AUTOMATION1_PM_PulseLen_;
+    int AUTOMATION1_PM_PulsePeriod_;
     int AUTOMATION1_PM_PulseSrc_;
     int AUTOMATION1_PM_PulseOut_;
     int AUTOMATION1_PM_PulseAxis_;

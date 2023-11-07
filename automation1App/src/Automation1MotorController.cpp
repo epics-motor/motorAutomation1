@@ -106,6 +106,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_PM_NumPulsesString,    asynParamInt32,        &AUTOMATION1_PM_NumPulses_);
     createParam(AUTOMATION1_PM_PulseDirString,     asynParamInt32,        &AUTOMATION1_PM_PulseDir_);
     createParam(AUTOMATION1_PM_PulseLenString,     asynParamFloat64,      &AUTOMATION1_PM_PulseLen_);
+    createParam(AUTOMATION1_PM_PulsePeriodString,  asynParamFloat64,      &AUTOMATION1_PM_PulsePeriod_);
     createParam(AUTOMATION1_PM_PulseSrcString,     asynParamInt32,        &AUTOMATION1_PM_PulseSrc_);
     createParam(AUTOMATION1_PM_PulseOutString,     asynParamInt32,        &AUTOMATION1_PM_PulseOut_);
     createParam(AUTOMATION1_PM_PulseAxisString,    asynParamInt32,        &AUTOMATION1_PM_PulseAxis_);
@@ -345,6 +346,7 @@ asynStatus Automation1MotorController::buildProfile()
     //double* pulsePos;
     int pulseDir;
     double pulseLen;
+    double pulsePeriod;
     int pulseSrc;
     int pulseOut;
     int pulseAxis;
@@ -373,6 +375,7 @@ asynStatus Automation1MotorController::buildProfile()
     //int AUTOMATION1_PM_PulsePos_;
     getIntegerParam(AUTOMATION1_PM_PulseDir_, &pulseDir);
     getDoubleParam(AUTOMATION1_PM_PulseLen_, &pulseLen);
+    getDoubleParam(AUTOMATION1_PM_PulsePeriod_, &pulsePeriod);
     getIntegerParam(AUTOMATION1_PM_PulseSrc_, &pulseSrc);
     getIntegerParam(AUTOMATION1_PM_PulseOut_, &pulseOut);
     getIntegerParam(AUTOMATION1_PM_PulseAxis_, &pulseAxis);    
@@ -399,6 +402,12 @@ asynStatus Automation1MotorController::buildProfile()
     profileAxes_.shrink_to_fit();
     numUsedAxes = profileAxes_.size();
     
+    // It doesn't make sense to have a pulse length that is longer than the pulse period
+    if (pulsePeriod < pulseLen)
+    {
+        pulsePeriod = pulseLen + 1.0;
+    }
+    
     /*
      * TODO: where to check for max acceleration? (min acceleration?)
      */
@@ -420,6 +429,7 @@ asynStatus Automation1MotorController::buildProfile()
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseOut = %i\n", driverName, functionName, pulseOut);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseDir = %i\n", driverName, functionName, pulseDir);
     asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulseLen = %lf\n", driverName, functionName, pulseLen);
+    asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR, "%s:%s:\tpulsePeriod = %lf\n", driverName, functionName, pulsePeriod);
     
     // calculate the pre, post, and total distance
     if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
@@ -947,7 +957,7 @@ asynStatus Automation1MotorController::buildProfile()
         // Configure waveform module in pulse mode (50% duty cycle for now)
         profileMoveFileContents.append("PsoWaveformConfigureMode($pulseAxis, PsoWaveformMode.Pulse)\n");
         profileMoveFileContents.append("PsoWaveformConfigurePulseFixedTotalTime($pulseAxis, ");
-        profileMoveFileContents.append(std::to_string(pulseLen*2));
+        profileMoveFileContents.append(std::to_string(pulsePeriod));
         profileMoveFileContents.append(")\n");
         profileMoveFileContents.append("PsoWaveformConfigurePulseFixedOnTime($pulseAxis, ");
         profileMoveFileContents.append(std::to_string(pulseLen));
