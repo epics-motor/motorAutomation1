@@ -226,7 +226,7 @@ text {
 		height=24
 	}
 	control {
-		chan="$(P)$(R)PulseLenth"
+		chan="$(P)$(R)PulseLength"
 		clr=14
 		bclr=51
 	}

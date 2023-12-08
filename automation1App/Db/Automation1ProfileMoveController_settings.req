@@ -1,6 +1,6 @@
 $(P)$(R)PulseMode
 $(P)$(R)PulseDir
-$(P)$(R)PulseLenth
+$(P)$(R)PulseLength
 $(P)$(R)PulsePeriod
 $(P)$(R)PulseSrc
 $(P)$(R)PulseOut

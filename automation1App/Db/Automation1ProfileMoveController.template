@@ -54,7 +54,7 @@ record(mbbo, "$(P)$(R)PulseDir") {
     field(TWST, "Neg")
     field(PINI, "YES")
 }
-record(ao, "$(P)$(R)PulseLenth") {
+record(ao, "$(P)$(R)PulseLength") {
     field(DTYP, "asynFloat64")
     field(DESC,"pulse length in microseconds")
     field(OUT,  "@asyn($(PORT),0,$(TIMEOUT=4))AUTOMATION1_PM_PULSE_LEN")

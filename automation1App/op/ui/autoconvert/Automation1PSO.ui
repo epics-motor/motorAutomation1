@@ -424,7 +424,7 @@ border-radius: 2px;
                 <enum>caLineEdit::WidthAndHeight</enum>
             </property>
             <property name="channel">
-                <string>$(P)$(R)PulseLenth</string>
+                <string>$(P)$(R)PulseLength</string>
             </property>
             <property name="foreground">
                 <color alpha="255">
