@@ -15,7 +15,6 @@
 #include <cstdarg>
 
 #define MAX_AUTOMATION1_AXES 32
-#define PROFILE_MOVE_TASK_INDEX 2
 #define PROFILE_MOVE_ABORT_TIMEOUT 1000
 #define DATA_POINTS_PER_SECOND 1000
 
@@ -41,7 +40,7 @@ class epicsShareClass Automation1MotorController : public asynMotorController
 {
 public:
     // Member functions we override from the base class.
-    Automation1MotorController(const char* portName, const char* hostName, int numAxes, double movingPollPeriod, double idlePollPeriod);
+    Automation1MotorController(const char* portName, const char* hostName, int numAxes, double movingPollPeriod, double idlePollPeriod, int commandExecuteTask, int profileMoveTask);
     ~Automation1MotorController();
     void report(FILE* fp, int level);
     Automation1MotorAxis* getAxis(asynUser* pasynUser);
@@ -90,6 +89,10 @@ private:
     // A handle that will be used to specify the data logged for
     // readbacks.
     Automation1DataCollectionConfig dataCollectionConfig_;
+    
+    // User-specified task indices
+    int32_t commandExecuteTask_;
+    int32_t profileMoveTask_;
     
     // The total number of data collection points
     int numDataPoints_;

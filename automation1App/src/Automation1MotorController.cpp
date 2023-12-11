@@ -35,7 +35,7 @@ static const char *driverName = "Automation1MotorController";
   * \param[in] movingPollPeriod   The time between polls when any axis is moving.
   * \param[in] idlePollPeriod     The time between polls when no axis is moving.
 */
-Automation1MotorController::Automation1MotorController(const char* portName, const char* hostName, int numAxes, double movingPollPeriod, double idlePollPeriod)
+Automation1MotorController::Automation1MotorController(const char* portName, const char* hostName, int numAxes, double movingPollPeriod, double idlePollPeriod, int commandExecuteTask, int profileMoveTask)
     : asynMotorController(portName, numAxes, NUM_AUTOMATION1_PARAMS,
         0, // No additional interfaces beyond those in base class
         0, // No additional callback interfaces beyond those in base class
@@ -43,6 +43,24 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         1, // autoconnect
         0, 0)    // Default priority and stack size
 {
+    // Set default task indices if the user doesn't specify them or invalid indices are specified
+    if (commandExecuteTask < 1)
+    {
+        commandExecuteTask_ = 1;
+    }
+    else
+    {
+        commandExecuteTask_ = commandExecuteTask;
+    }
+    if (commandExecuteTask < 1)
+    {
+        profileMoveTask_ = 2;
+    }
+    else
+    {
+        profileMoveTask_ = profileMoveTask;
+    }
+    
     dataCollectionConfig_ = NULL;
     displayPointSpacing_ = 1;
     profilePulses_ = NULL;
@@ -121,9 +139,9 @@ void Automation1MotorController::createAsynParams(void)
     * \param[in] movingPollPeriod    The time in ms between polls when any axis is moving.
     * \param[in] idlePollPeriod      The time in ms between polls when no axis is moving.
   */
-extern "C" int Automation1CreateController(const char* portName, const char* hostName, int numAxes, int movingPollPeriod, int idlePollPeriod)
+extern "C" int Automation1CreateController(const char* portName, const char* hostName, int numAxes, int movingPollPeriod, int idlePollPeriod, int commandExecuteTask, int profileMoveTask)
 {
-    new Automation1MotorController(portName, hostName, numAxes, movingPollPeriod / 1000., idlePollPeriod / 1000.);
+    new Automation1MotorController(portName, hostName, numAxes, movingPollPeriod / 1000., idlePollPeriod / 1000., commandExecuteTask, profileMoveTask);
     return(asynSuccess);
 }
 
@@ -158,7 +176,7 @@ asynStatus Automation1MotorController::writeOctet(asynUser *pasynUser, const cha
     
     if(function == AUTOMATION1_C_ExecuteCommand_)
     {
-        if(!Automation1_Command_Execute(this->controller_, 1, value))
+        if(!Automation1_Command_Execute(this->controller_, commandExecuteTask_, value))
         {
             logError("Could not execute requested command.");
         }
@@ -176,7 +194,7 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
     
     if (function == AUTOMATION1_C_AckAll_) 
     {        
-	    if(!Automation1_Command_AcknowledgeAll(controller_, 1))
+	    if(!Automation1_Command_AcknowledgeAll(controller_, commandExecuteTask_))
 	    {
 	        logError("Could not clear faults.");
 	    }
@@ -877,11 +895,11 @@ asynStatus Automation1MotorController::buildProfile()
     // Note: Task 2 was chosen somewhat arbitrarily.  Task 0 is reserved by the controller, but other
     //       tasks can be used for user commands. 
     profileMoveFileContents.append("var $motionInterpolationMode as real = ParameterGetTaskValue(");
-    profileMoveFileContents.append(std::to_string(PROFILE_MOVE_TASK_INDEX));
+    profileMoveFileContents.append(std::to_string(profileMoveTask_));
     profileMoveFileContents.append(", TaskParameter.MotionInterpolationMode)\n");
 
     profileMoveFileContents.append("ParameterSetTaskValue(");
-    profileMoveFileContents.append(std::to_string(PROFILE_MOVE_TASK_INDEX));
+    profileMoveFileContents.append(std::to_string(profileMoveTask_));
     profileMoveFileContents.append(", TaskParameter.MotionInterpolationMode, 1)\n");
 
     // We set the task mode in accordance with what the user specified.
@@ -1006,7 +1024,7 @@ asynStatus Automation1MotorController::buildProfile()
     
     profileMoveFileContents.append("\n// Restore task settings\n");
     profileMoveFileContents.append("ParameterSetTaskValue(");
-    profileMoveFileContents.append(std::to_string(PROFILE_MOVE_TASK_INDEX));
+    profileMoveFileContents.append(std::to_string(profileMoveTask_));
     profileMoveFileContents.append(", TaskParameter.MotionInterpolationMode, $motionInterpolationMode)\n");
     profileMoveFileContents.append("end");
     
@@ -1111,20 +1129,20 @@ asynStatus Automation1MotorController::executeProfile()
     if (moveMode == PROFILE_MOVE_MODE_ABSOLUTE)
     {
         // Automation1_Command_MoveAbsolute(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* positions, int32_t positionsLength, double* speeds, int32_t speedsLength);
-        Automation1_Command_MoveAbsolute(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
+        Automation1_Command_MoveAbsolute(controller_, commandExecuteTask_, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
     }
     else
     {
         // Automation1_Command_MoveIncremental(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength, double* distances, int32_t distancesLength, double* speeds, int32_t speedsLength);
-        Automation1_Command_MoveIncremental(controller_, 1, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
+        Automation1_Command_MoveIncremental(controller_, commandExecuteTask_, axes, numUsedAxes, positions, numUsedAxes, velocities, numUsedAxes);
     }
     // Automation1_Command_WaitForMotionDone(Automation1Controller controller, int32_t executionTaskIndex, int32_t* axes, int32_t axesLength);
-    Automation1_Command_WaitForMotionDone(controller_, 1, axes, numUsedAxes);
+    Automation1_Command_WaitForMotionDone(controller_, commandExecuteTask_, axes, numUsedAxes);
     
     // This compiles and runs the Aeroscript file on the controller. Note that this function returns
     // after the program is started, it does not wait for the program to finish.
     if (!Automation1_Task_ProgramRun(controller_,
-                                     PROFILE_MOVE_TASK_INDEX,
+                                     profileMoveTask_,
                                      "epics_profile_move.ascript"))
     {
         executeOK = false;
@@ -1153,7 +1171,7 @@ done:
 asynStatus Automation1MotorController::abortProfile()
 {
     if (!Automation1_Task_ProgramStop(controller_,
-                                      PROFILE_MOVE_TASK_INDEX,
+                                      profileMoveTask_,
                                       PROFILE_MOVE_ABORT_TIMEOUT))
     {
         logApiError("Automation1 profile move failed to abort");
@@ -1327,7 +1345,7 @@ done:
 asynStatus Automation1MotorController::poll()
 {
     Automation1DataCollectionStatus dataCollectionStatus;
-    Automation1TaskStatus taskStatusArray[PROFILE_MOVE_TASK_INDEX + 1];
+    Automation1TaskStatus taskStatusArray[profileMoveTask_ + 1];
     Automation1TaskStatus* taskStatus;
     int executeState = PROFILE_EXECUTE_DONE;
     int numPoints;
@@ -1347,12 +1365,12 @@ asynStatus Automation1MotorController::poll()
             goto done;
         }
 
-        if (!Automation1_Task_GetStatus(controller_, taskStatusArray, PROFILE_MOVE_TASK_INDEX + 1)) {
+        if (!Automation1_Task_GetStatus(controller_, taskStatusArray, profileMoveTask_ + 1)) {
             logApiError("Failed to get task status");
             pollOk = false;
             goto done;
         }
-        taskStatus = &taskStatusArray[PROFILE_MOVE_TASK_INDEX];
+        taskStatus = &taskStatusArray[profileMoveTask_];
 
         currentPoint = dataCollectionStatus.NumberOfRetrievedPoints / displayPointSpacing_;
         if (currentPoint > numPoints)
@@ -1451,15 +1469,19 @@ static const iocshArg Automation1CreateControllerArg1 = { "Host name", iocshArgS
 static const iocshArg Automation1CreateControllerArg2 = { "Number of axes", iocshArgInt };
 static const iocshArg Automation1CreateControllerArg3 = { "Moving poll period (ms)", iocshArgInt };
 static const iocshArg Automation1CreateControllerArg4 = { "Idle poll period (ms)", iocshArgInt };
+static const iocshArg Automation1CreateControllerArg5 = { "Command execute task", iocshArgInt };
+static const iocshArg Automation1CreateControllerArg6 = { "Profile move task", iocshArgInt };
 static const iocshArg* const Automation1CreateControllerArgs[] = { &Automation1CreateControllerArg0,
                                                                    &Automation1CreateControllerArg1,
                                                                    &Automation1CreateControllerArg2,
                                                                    &Automation1CreateControllerArg3,
-                                                                   &Automation1CreateControllerArg4 };
-static const iocshFuncDef Automation1CreateControllerDef = { "Automation1CreateController", 5, Automation1CreateControllerArgs };
+                                                                   &Automation1CreateControllerArg4,
+                                                                   &Automation1CreateControllerArg5,
+                                                                   &Automation1CreateControllerArg6 };
+static const iocshFuncDef Automation1CreateControllerDef = { "Automation1CreateController", 7, Automation1CreateControllerArgs };
 static void Automation1CreateContollerCallFunc(const iocshArgBuf* args)
 {
-    Automation1CreateController(args[0].sval, args[1].sval, args[2].ival, args[3].ival, args[4].ival);
+    Automation1CreateController(args[0].sval, args[1].sval, args[2].ival, args[3].ival, args[4].ival, args[5].ival, args[6].ival);
 }
 
 static void Automation1Register(void)
