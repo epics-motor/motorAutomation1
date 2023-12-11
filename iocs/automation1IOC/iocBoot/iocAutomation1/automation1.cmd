@@ -1,5 +1,12 @@
-
-Automation1CreateController("Automation1", "164.54.104.47", 4, 100, 1000)
+# Automation1CreateController(
+#   const char* portName,    # asyn port name
+#   const char* hostName,    # hostname or ip address
+#   int numAxes,
+#   int movingPollPeriod,    # unit: milliseconds
+#   int idlePollPeriod,      # unit: milliseconds
+#   int commandExecuteTask,  # default task index: 1
+#   int profileMoveTask)     # default task index: 2
+Automation1CreateController("Automation1", "127.0.0.1", 4, 100, 1000, 1, 2)
 
 # traceError and traceIODriver
 #!asynSetTraceMask("Automation1", 0, 0x9)
