@@ -5,3 +5,4 @@ $(P)$(R)PulsePeriod
 $(P)$(R)PulseSrc
 $(P)$(R)PulseOut
 $(P)$(R)PulseAxis
+$(P)$(R)NumPulsePositions
