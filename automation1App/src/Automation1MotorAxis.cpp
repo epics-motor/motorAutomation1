@@ -248,7 +248,13 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
 {
     if (closedLoop)
     {
-        if (!Automation1_Command_Enable(pC_->controller_, 1, &axisNo_, 1))
+        // Automatically attempt to clear faults before attempting to enable the motor
+        if(!Automation1_Command_AcknowledgeAll(pC_->controller_, pC_->commandExecuteTask_))
+        {
+            logError("Could not clear faults.");
+        }
+        
+        if (!Automation1_Command_Enable(pC_->controller_, pC_->commandExecuteTask_, &axisNo_, 1))
         {
             logError("Failed to enable axis.");
             return asynError;
