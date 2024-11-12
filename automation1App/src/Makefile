@@ -9,7 +9,8 @@ ifeq (win32-x86-static, $(findstring win32-x86, $(T_A)))
 USR_LDFLAGS += /NODEFAULTLIB:MSVCRT
 endif
 
-LIBRARY_IOC = Automation1
+LIBRARY_IOC_WIN32 = Automation1
+LIBRARY_IOC_Linux = Automation1
 
 SRCS += Automation1MotorAxis.cpp
 SRCS += Automation1MotorController.cpp
