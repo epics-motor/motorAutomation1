@@ -1345,7 +1345,7 @@ done:
 asynStatus Automation1MotorController::poll()
 {
     Automation1DataCollectionStatus dataCollectionStatus;
-    Automation1TaskStatus taskStatusArray[profileMoveTask_ + 1];
+    Automation1TaskStatus *taskStatusArray = new Automation1TaskStatus[profileMoveTask_ + 1];
     Automation1TaskStatus* taskStatus;
     int executeState = PROFILE_EXECUTE_DONE;
     int numPoints;
@@ -1401,7 +1401,7 @@ done:
     {
         callParamCallbacks();
     }
-
+    delete[] taskStatusArray;
     return pollOk ? asynSuccess : asynError;
 }
 
