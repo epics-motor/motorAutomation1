@@ -20,4 +20,4 @@
 
 Automation1CreateController("$(INSTANCE)", "$(HOST_NAME)", $(NUM_AXES=1), $(MOVING_POLL=$(POLL_RATE=1000)), $(IDLE_POLL=$(POLL_RATE=1000)))
 
-Automation1CreateProfile("$(INSTANCE)", $(MAX_POINTS=2000))
+Automation1CreateProfile("$(INSTANCE)", $(MAX_POINTS=2000), $(MAX_PULSES=2000))
