@@ -633,7 +633,7 @@ asynStatus Automation1MotorController::buildProfile()
         
         double pulseSpacing;
         // Assume that numPulses isn't zero for now
-        pulseSpacing = axis->profileTotalDistance_ / numPulses;
+        pulseSpacing = axis->profileTotalDistance_ / (numPulses - 1);
         
         // The 1st pulse always occurs after the pre profile displacement 
         profilePulseDisplacements_[0] = axis->profilePreDistance_;
@@ -670,7 +670,7 @@ asynStatus Automation1MotorController::buildProfile()
         {
             double totalPulseDistance, pulseSpacing;
             totalPulseDistance = axis->profilePositions_[endPulses] - axis->profilePositions_[startPulses];
-            pulseSpacing = totalPulseDistance / numPulses;
+            pulseSpacing = totalPulseDistance / (numPulses - 1);
             
             profilePulseDisplacements_[0] = axis->profilePositions_[startPulses] - axis->profilePrePosition_;
             for (i=1; i < numPulses; i++)
@@ -694,7 +694,7 @@ asynStatus Automation1MotorController::buildProfile()
                 remainingPulseDistance += axis->profilePositions_[i];
             }
             
-            pulseSpacing = remainingPulseDistance / numPulses;
+            pulseSpacing = remainingPulseDistance / (numPulses - 1);
             
             for (i=0; i < numPulses; i++)
             {
