@@ -30,6 +30,25 @@ record(ai, "$(P)$(M)FERROR")
 }
 
 ##############################################################
+# Status Bits
+##############################################################
+record(longin, "$(P)$(M)AxisStatus")
+{
+    field(DESC, "Axis Status Bits")
+    field(DTYP, "asynInt32")
+    field(SCAN, "I/O Intr")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_AXIS_STATUS_BITS")
+}
+
+record(longin, "$(P)$(M)DriveStatus")
+{
+    field(DESC, "Drive Status Bits")
+    field(DTYP, "asynInt32")
+    field(SCAN, "I/O Intr")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_DRIVE_STATUS_BITS")
+}
+
+##############################################################
 # Following Error (MAX)
 ##############################################################
 record(calc, "$(P)$(M)FERRORMAX")

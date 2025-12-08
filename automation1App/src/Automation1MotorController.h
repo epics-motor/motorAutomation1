@@ -23,6 +23,8 @@
 #define AUTOMATION1_C_VelocityString        "AUTOMATION1_C_VELOCITY"
 #define AUTOMATION1_C_FErrorString          "AUTOMATION1_C_FERROR"
 #define AUTOMATION1_C_ExecuteCommandString  "AUTOMATION1_C_EXECUTE_COMMAND"
+#define AUTOMATION1_C_AxisStatusBits        "AUTOMATION1_C_AXIS_STATUS_BITS"
+#define AUTOMATION1_C_DriveStatusBits       "AUTOMATION1_C_DRIVE_STATUS_BITS"
 // Controller-specific profileMove parameters
 #define AUTOMATION1_PM_PulseModeString      "AUTOMATION1_PM_PULSE_MODE"
 #define AUTOMATION1_PM_PulsePosString       "AUTOMATION1_PM_PULSE_POS"
@@ -33,7 +35,7 @@
 #define AUTOMATION1_PM_PulseSrcString       "AUTOMATION1_PM_PULSE_SRC"
 #define AUTOMATION1_PM_PulseOutString       "AUTOMATION1_PM_PULSE_OUT"
 #define AUTOMATION1_PM_PulseAxisString      "AUTOMATION1_PM_PULSE_AXIS"
-#define NUM_AUTOMATION1_PARAMS 11
+#define NUM_AUTOMATION1_PARAMS 15
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -69,6 +71,8 @@ protected:
     int AUTOMATION1_C_Velocity_;
     int AUTOMATION1_C_FError_;
     int AUTOMATION1_C_ExecuteCommand_;
+    int AUTOMATION1_C_AxisStatusBits_;
+    int AUTOMATION1_C_DriveStatusBits_;
     int AUTOMATION1_PM_PulseMode_;
     int AUTOMATION1_PM_PulsePos_;
     int AUTOMATION1_PM_NumPulses_;
