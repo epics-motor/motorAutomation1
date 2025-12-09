@@ -4,8 +4,8 @@
 <widget class="QMainWindow" name="MainWindow">
     <property name="geometry">
         <rect>
-            <x>79</x>
-            <y>1155</y>
+            <x>69</x>
+            <y>1147</y>
             <width>700</width>
             <height>740</height>
         </rect>
@@ -1128,7 +1128,7 @@ caMenu{
                 </rect>
             </property>
             <property name="channel">
-                <string>$(P)$(M):AxisStatus</string>
+                <string>$(P)$(M)AxisStatus</string>
             </property>
             <property name="foreground">
                 <color alpha="255">
@@ -2175,7 +2175,7 @@ caMenu{
                 </rect>
             </property>
             <property name="channel">
-                <string>$(P)$(M):DriveStatus</string>
+                <string>$(P)$(M)DriveStatus</string>
             </property>
             <property name="foreground">
                 <color alpha="255">
@@ -2243,6 +2243,60 @@ caMenu{
                 <enum>Solid</enum>
             </property>
         </widget>
+        <widget class="caLineEdit" name="caLineEdit_0">
+            <property name="geometry">
+                <rect>
+                    <x>5</x>
+                    <y>5</y>
+                    <width>200</width>
+                    <height>25</height>
+                </rect>
+            </property>
+            <property name="fontScaleMode">
+                <enum>caLineEdit::WidthAndHeight</enum>
+            </property>
+            <property name="channel">
+                <string>$(P)$(M).DESC</string>
+            </property>
+            <property name="foreground">
+                <color alpha="255">
+                    <red>255</red>
+                    <green>255</green>
+                    <blue>255</blue>
+                </color>
+            </property>
+            <property name="background">
+                <color alpha="255">
+                    <red>10</red>
+                    <green>0</green>
+                    <blue>184</blue>
+                </color>
+            </property>
+            <property name="limitsMode">
+                <enum>caLineEdit::Channel</enum>
+            </property>
+            <property name="limitsMode">
+                <enum>caLineEdit::Channel</enum>
+            </property>
+            <property name="precisionMode">
+                <enum>caLineEdit::Channel</enum>
+            </property>
+            <property name="minValue">
+                <double>0.0</double>
+            </property>
+            <property name="maxValue">
+                <double>1.0</double>
+            </property>
+            <property name="alignment">
+                <set>Qt::AlignAbsolute|Qt::AlignLeft|Qt::AlignVCenter</set>
+            </property>
+            <property name="formatType">
+                <enum>decimal</enum>
+            </property>
+            <property name="colorMode">
+                <enum>caLineEdit::Static</enum>
+            </property>
+        </widget>
         <widget class="caLabel" name="caLabel_56">
             <property name="frameShape">
                 <enum>QFrame::NoFrame</enum>
@@ -2262,16 +2316,16 @@ caMenu{
                 </color>
             </property>
             <property name="text">
-                <string>$(P)$(M)</string>
+                <string>($(P)$(M))</string>
             </property>
             <property name="fontScaleMode">
                 <enum>ESimpleLabel::WidthAndHeight</enum>
             </property>
             <property name="geometry">
                 <rect>
-                    <x>5</x>
+                    <x>210</x>
                     <y>5</y>
-                    <width>100</width>
+                    <width>300</width>
                     <height>25</height>
                 </rect>
             </property>
@@ -2339,6 +2393,7 @@ caMenu{
         <zorder>caLabel_56</zorder>
         <zorder>caByte_0</zorder>
         <zorder>caByte_1</zorder>
+        <zorder>caLineEdit_0</zorder>
     </widget>
 </widget>
 </ui>

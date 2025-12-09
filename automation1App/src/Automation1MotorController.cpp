@@ -119,7 +119,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_C_FErrorString,         asynParamFloat64,   &AUTOMATION1_C_FError_);
     createParam(AUTOMATION1_C_ExecuteCommandString, asynParamOctet,     &AUTOMATION1_C_ExecuteCommand_);
     createParam(AUTOMATION1_C_AxisStatusBits,       asynParamInt32,     &AUTOMATION1_C_AxisStatusBits_);
-    createParam(AUTOMATION1_C_DriveStatusBits,       asynParamInt32,     &AUTOMATION1_C_DriveStatusBits_);
+    createParam(AUTOMATION1_C_DriveStatusBits,      asynParamInt32,     &AUTOMATION1_C_DriveStatusBits_);
     //
     createParam(AUTOMATION1_PM_PulseModeString,    asynParamInt32,        &AUTOMATION1_PM_PulseMode_);
     createParam(AUTOMATION1_PM_PulsePosString,     asynParamFloat64Array, &AUTOMATION1_PM_PulsePos_);

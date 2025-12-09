@@ -49,6 +49,17 @@ record(longin, "$(P)$(M)DriveStatus")
 }
 
 ##############################################################
+# SYNC motor record after homing
+##############################################################
+record(calcout, "$(P)$(M)sync_after_homed")
+{
+    field(INPA, "$(P)$(M)AxisStatus.VAL CP")
+    field(CALC, "(A & (1 << 0)) != 0")
+    field(OOPT, "Transition To Non-zero")
+    field(OUT, "$(P)$(M).SYNC PP")
+}
+
+##############################################################
 # Following Error (MAX)
 ##############################################################
 record(calc, "$(P)$(M)FERRORMAX")

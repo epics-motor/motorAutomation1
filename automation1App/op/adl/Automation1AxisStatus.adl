@@ -1,12 +1,12 @@
 
 file {
-	name="/home/beams0/NMARKS/newDisplay.adl"
+	name="/net/s32dserv/xorApps/epics/synApps_6_3/support/motorAutomation1-new/automation1App/op/adl/Automation1AxisStatus.adl"
 	version=030111
 }
 display {
 	object {
-		x=79
-		y=1155
+		x=69
+		y=1147
 		width=700
 		height=740
 	}
@@ -459,7 +459,7 @@ byte {
 		height=640
 	}
 	monitor {
-		chan="$(P)$(M):AxisStatus"
+		chan="$(P)$(M)AxisStatus"
 		clr=20
 		bclr=4
 	}
@@ -838,7 +838,7 @@ byte {
 		height=640
 	}
 	monitor {
-		chan="$(P)$(M):DriveStatus"
+		chan="$(P)$(M)DriveStatus"
 		clr=20
 		bclr=4
 	}
@@ -857,15 +857,30 @@ rectangle {
 		clr=54
 	}
 }
-text {
+"text update" {
 	object {
 		x=5
 		y=5
-		width=100
+		width=200
+		height=25
+	}
+	monitor {
+		chan="$(P)$(M).DESC"
+		clr=0
+		bclr=54
+	}
+	limits {
+	}
+}
+text {
+	object {
+		x=210
+		y=5
+		width=300
 		height=25
 	}
 	"basic attribute" {
 		clr=0
 	}
-	textix="$(P)$(M)"
+	textix="($(P)$(M))"
 }
