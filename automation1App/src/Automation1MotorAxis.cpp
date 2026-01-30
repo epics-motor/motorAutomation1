@@ -359,6 +359,9 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
               axisNo_,
               countsPerUnitParam_);
 
+    setIntegerParam(pC_->AUTOMATION1_C_AxisStatusBits_, axisStatus);
+    setIntegerParam(pC_->AUTOMATION1_C_DriveStatusBits_, driveStatus);
+
     enabled = driveStatus & Automation1DriveStatus_Enabled;
     setIntegerParam(pC_->motorStatusPowerOn_, enabled);
     setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);

@@ -30,6 +30,36 @@ record(ai, "$(P)$(M)FERROR")
 }
 
 ##############################################################
+# Status Bits
+##############################################################
+record(longin, "$(P)$(M)AxisStatus")
+{
+    field(DESC, "Axis Status Bits")
+    field(DTYP, "asynInt32")
+    field(SCAN, "I/O Intr")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_AXIS_STATUS_BITS")
+}
+
+record(longin, "$(P)$(M)DriveStatus")
+{
+    field(DESC, "Drive Status Bits")
+    field(DTYP, "asynInt32")
+    field(SCAN, "I/O Intr")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_C_DRIVE_STATUS_BITS")
+}
+
+##############################################################
+# SYNC motor record after homing
+##############################################################
+record(calcout, "$(P)$(M)sync_after_homed")
+{
+    field(INPA, "$(P)$(M)AxisStatus.VAL CP")
+    field(CALC, "(A & (1 << 0)) != 0")
+    field(OOPT, "Transition To Non-zero")
+    field(OUT, "$(P)$(M).SYNC PP")
+}
+
+##############################################################
 # Following Error (MAX)
 ##############################################################
 record(calc, "$(P)$(M)FERRORMAX")
