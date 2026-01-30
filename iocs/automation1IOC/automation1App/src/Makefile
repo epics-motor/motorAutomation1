@@ -43,9 +43,13 @@ ifeq (win32-x86, $(findstring win32-x86, $(T_A)))
 	PROD_LIBS += automation1c
 else ifeq (windows-x64, $(findstring windows-x64, $(T_A)))
 	PROD_LIBS += automation1c64
-else ifeq (linux-x86_64, $(findstring linux-x86_64, $(T_A)))
+# Use OS_CLASS check for linux to avoid breaking custom Linux arches
+else ifeq ($(OS_CLASS),Linux)
+ifeq (x86_64, $(findstring x86_64, $(T_A)))
 	PROD_SYS_LIBS += automation1compiler
 	PROD_SYS_LIBS += automation1c
+endif
+# End OS_CLASS=Linux
 endif
 
 # Add all the support libraries needed by this IOC
