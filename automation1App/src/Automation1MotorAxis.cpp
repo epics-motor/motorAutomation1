@@ -41,6 +41,7 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPosition, 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -311,7 +312,7 @@ asynStatus Automation1MotorAxis::defineProfile(double *positions, size_t numPoin
 asynStatus Automation1MotorAxis::poll(bool* moving)
 {
     bool pollSuccessfull = true;
-    double results[6];
+    double results[7];
     int axisStatus;
     int driveStatus;
     int enabled;
@@ -336,6 +337,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
     positionError = results[5];
+    programPosition_ = results[6];
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
@@ -442,6 +444,127 @@ skip:
     }
 
     return pollSuccessfull ? asynSuccess : asynError;
+}
+
+/** Enables or disables position compare output
+  *
+  * \param[in] enable A flag to enable (true) or disable (false) PCO
+*/
+asynStatus Automation1MotorAxis::enablePCO(bool enable)
+{
+  Automation1PsoDistanceInput pulseSource = Automation1PsoDistanceInput_iXL5ePrimaryFeedback;
+  Automation1PsoWindowInput windowSource =  Automation1PsoWindowInput_iXL5ePrimaryFeedback;
+  int windowNumber = 0;
+  int clockFrequency = 1e6;
+  double startPosition, endPosition, increment, pulseWidth;
+  
+  pC_->getDoubleParam(axisNo_, pC_->PCOStartPosition_, &startPosition);
+  pC_->getDoubleParam(axisNo_, pC_->PCOEndPosition_,   &endPosition);
+  pC_->getDoubleParam(axisNo_, pC_->PCOIncrement_,     &increment);
+  pC_->getDoubleParam(0,       pC_->PCOPulseWidth_,    &pulseWidth);
+
+  printf("Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f, enable=%d\n",
+         startPosition, endPosition, increment, pulseWidth, enable);
+
+  if (!Automation1_Command_PsoReset(pC_->controller_, 1, axisNo_)) {
+    logError("Error calling PsoReset");
+    return asynError;
+  }
+  
+  // If enable is 0 we are done
+  if (enable == 0) {
+    return asynSuccess;
+  }
+
+  Automation1PsoDistanceInput pulseSrc = pulseSource;
+  if (!Automation1_Command_PsoDistanceConfigureInputs(pC_->controller_, 1, axisNo_, &pulseSrc, 1)) {
+    logError("Error calling PsoDistanceConfigureInputs");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceConfigureFixedDistance(pC_->controller_, 1, axisNo_, std::lround(increment * countsPerUnitParam_))) {
+    logError("Error calling PsoDistanceConfigureFixedDistance");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceCounterOn(pC_->controller_, 1, axisNo_)) {
+    logError("Error calling PsoDistanceCounterOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceEventsOn(pC_->controller_, 1, axisNo_)) {
+    logError("Error calling PsoDistanceEventsOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowConfigureInput(pC_->controller_, 1, axisNo_, windowNumber, windowSource, 1)) {
+    logError("Error calling PsoWindowConfigureInput");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowCounterSetValue(pC_->controller_, 1, axisNo_, windowNumber, std::lround(programPosition_ * countsPerUnitParam_))) {
+    logError("Error calling PsoWindowCCounterSetValue");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, 1, axisNo_, windowNumber, 
+       std::lround(startPosition * countsPerUnitParam_), std::lround(endPosition * countsPerUnitParam_))) {
+    logError("Error calling PsoWindowConfigureFixedRange");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowOutputOn(pC_->controller_, 1, axisNo_, windowNumber)) {
+    logError("Error calling PsoWindowOutputOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoEventConfigureMask(pC_->controller_, 1, axisNo_, Automation1PsoEventMask_WindowMask)) {
+    logError("Error calling PsoEventConfigureMask");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigureMode(pC_->controller_, 1, axisNo_, Automation1PsoWaveformMode_Pulse)) {
+    logError("Error calling PsoWaveformConfigureMode");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedTotalTime(pC_->controller_, 1, axisNo_, std::lround(pulseWidth * clockFrequency))) {
+    logError("Error calling PsoWaveformConfigurePulseFixedTotalTime");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedOnTime(pC_->controller_, 1, axisNo_, std::lround(pulseWidth * clockFrequency))) {
+    logError("Error calling PsoWaveformConfigurePulseFixedOnTime");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedCount(pC_->controller_, 1, axisNo_, 1)) {
+    logError("Error calling PsoWaveformConfigurePulseFixedCount");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformApplyPulseConfiguration(pC_->controller_, 1, axisNo_)) {
+    logError("Error calling PsoWaveformApplyPulseConfiguration");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformOn(pC_->controller_, 1, axisNo_)) {
+    logError("Error calling PsoWaveformOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoOutputConfigureSource(pC_->controller_, 1, axisNo_, Automation1PsoOutputSource_Waveform)) {
+    logError("Error calling PsoOutputConfigureSource");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoOutputConfigureOutput(pC_->controller_, 1, axisNo_, Automation1PsoOutputPin_iXL5eAuxiliaryMarkerSingleEnded)) {
+    logError("Error calling PsoOutputConfigureOutput");
+    return asynError;
+  }
+  printf("Automation1MotorAxis::enablePCO exit success\n");
+  return asynSuccess;
+
 }
 
 /** Logs an driver error and error details from the C API.  Made to reduce duplicate code.
