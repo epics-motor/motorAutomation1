@@ -545,8 +545,9 @@ asynStatus Automation1MotorAxis::enablePCO(bool enable)
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, taskNumber, axisNo_, windowNumber, 
-       std::lround(startPosition * countsPerUnitParam_), std::lround(endPosition * countsPerUnitParam_))) {
+  double lowerBound = std::lround(std::min(startPosition, endPosition) * countsPerUnitParam_);
+  double upperBound = std::lround(std::max(startPosition, endPosition) * countsPerUnitParam_);
+  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, taskNumber, axisNo_, windowNumber, lowerBound, upperBound)) {
     logError("Error calling PsoWindowConfigureFixedRange");
     return asynError;
   }
