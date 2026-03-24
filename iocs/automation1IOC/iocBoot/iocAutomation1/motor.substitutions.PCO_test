@@ -35,9 +35,10 @@ pattern
 {Auto1:, Automation1,           1}
 }
 
+# The PSO values below are for the iXL5e controller
 file "$(TOP)/db/Automation1MotorAxis.template"
 {
 pattern
-{     P,	M,        PORT,	ADDR,    TIMEOUT}
-{Auto1:, 	m1, Automation1,	0,           	1}
+{     P,	M,        PORT,	ADDR,    PSO_DISTANCE_INPUT, PSO_WINDOW_INPUT, PSO_OUTPUT_PIN, TIMEOUT}
+{Auto1:, 	m1, Automation1,	0,         190,                190,             135,          	1}
 }
