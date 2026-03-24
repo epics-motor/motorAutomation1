@@ -79,3 +79,50 @@ record(bo, "$(P)$(M)FEMAXRESET")
     field(VAL, "0")
     field(OUT, "$(P)$(M)FERRORMAX.VAL")
 }
+
+##############################################################
+# PSO distance source.  
+# These are the Automation1PsoDistanceInput values defined in Automation1Enum.h
+# For example, the primary encoder feedback on the iXL5e is 190
+# Automation1PsoDistanceInput_iXL5ePrimaryFeedback = 190
+##############################################################
+record(longout, "$(P)$(M)PSODistanceInput")
+{
+    field(DESC, "PSO distance input")
+    field(PINI, "YES")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_PSO_DISTANCE_INPUT")
+    field(VAL,  "$(PSO_DISTANCE_INPUT=0)")
+}
+
+##############################################################
+# PSO window source.  
+# These are the Automation1PsoWindowInput values defined in Automation1Enum.h
+# For example, the primary encoder feedback on the iXL5e is 190
+# Automation1PsoWindowInput_iXL5ePrimaryFeedback = 190
+##############################################################
+record(longout, "$(P)$(M)PSOWindowInput")
+{
+    field(DESC, "PSO distance input")
+    field(PINI, "YES")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_PSO_WINDOW_INPUT")
+    field(VAL,  "$(PSO_WINDOW_INPUT=0)")
+}
+
+##############################################################
+# PSO output pin.  
+# These are the Automation1PsoOutputPin values defined in Automation1Enum.h
+# For example, the auxialiary marker single-ended on the iXL5e is 135
+# Automation1PsoOutputPin_iXL5eAuxiliaryMarkerSingleEnded = 135
+##############################################################
+record(longout, "$(P)$(M)PSOutputPin")
+{
+    field(DESC, "PSO distance input")
+    field(PINI, "YES")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_PSO_OUTPUT_PIN")
+    field(VAL,  "$(PSO_OUTPUT_PIN=0)")
+}
+
+
