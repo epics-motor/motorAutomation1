@@ -33,6 +33,8 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     pC_(pC)
 {
     fullProfilePositions_ = NULL;
+    Automation1ConfiguredParameters configuredParameters;
+    double direction;
     
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
@@ -42,6 +44,24 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPosition, 0);
+
+    // Determine if this axis has reverse direction of encoder and motor direction
+    if (!Automation1_ConfiguredParameters_Create(&configuredParameters)) {
+      logError("Error calling ConfiguredParameters_Create");
+      return;
+    }
+  
+    if (!Automation1_Configuration_GetConfiguredParameters(pC_->controller_, configuredParameters)) {  
+      logError("Error calling GetConfiguredParameters");
+      return;
+    }
+    
+    if (!Automation1_ConfiguredParameters_GetAxisValue(configuredParameters, axisNo_, 
+         Automation1AxisParameterId_ReverseMotionDirection, &direction)) {
+      logError("Error calling ConfiguredParameters_GetAxisValue");
+      return;
+    }
+    reverseDirection_ = (direction != 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -452,21 +472,39 @@ skip:
 */
 asynStatus Automation1MotorAxis::enablePCO(bool enable)
 {
-  Automation1PsoDistanceInput pulseSource = Automation1PsoDistanceInput_iXL5ePrimaryFeedback;
-  Automation1PsoWindowInput windowSource =  Automation1PsoWindowInput_iXL5ePrimaryFeedback;
+  Automation1PsoDistanceInput distanceInput;
+  Automation1PsoWindowInput windowInput;
+  Automation1PsoOutputPin outputPin;
+  int recDirection, dir;
+  double recOffset;
+  int iTemp;
   int windowNumber = 0;
-  int clockFrequency = 1e6;
+  int taskNumber = 1;
   double startPosition, endPosition, increment, pulseWidth;
-  
-  pC_->getDoubleParam(axisNo_, pC_->PCOStartPosition_, &startPosition);
-  pC_->getDoubleParam(axisNo_, pC_->PCOEndPosition_,   &endPosition);
-  pC_->getDoubleParam(axisNo_, pC_->PCOIncrement_,     &increment);
-  pC_->getDoubleParam(0,       pC_->PCOPulseWidth_,    &pulseWidth);
 
-  printf("Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f, enable=%d\n",
-         startPosition, endPosition, increment, pulseWidth, enable);
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_DistanceInput_, &iTemp);
+  distanceInput = (Automation1PsoDistanceInput)iTemp;
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_WindowInput_,   &iTemp);
+  windowInput = (Automation1PsoWindowInput)iTemp;
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_OutputPin_,     &iTemp);
+  outputPin = (Automation1PsoOutputPin)iTemp;
+  pC_->getDoubleParam(axisNo_,  pC_->PCOStartPosition_, &startPosition);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOEndPosition_,   &endPosition);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOIncrement_,     &increment);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOPulseWidth_,    &pulseWidth);
+  pC_->getIntegerParam(axisNo_, pC_->motorRecDirection_, &recDirection);
+  pC_->getDoubleParam(axisNo_,  pC_->motorRecOffset_,    &recOffset);
 
-  if (!Automation1_Command_PsoReset(pC_->controller_, 1, axisNo_)) {
+  dir = recDirection ? -1 : 1;
+  startPosition = (startPosition - recOffset) * dir;
+  endPosition = (endPosition - recOffset) * dir;
+
+  printf("Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f," 
+         "reverseDirection=%d, distanceInput=%d, windowInput=%d, outputPin=%d, recDirection=%d, recOffset=%f, enable=%d\n",
+         startPosition, endPosition, increment, pulseWidth, reverseDirection_, distanceInput, windowInput, outputPin, 
+         recDirection, recOffset, enable);
+
+  if (!Automation1_Command_PsoReset(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoReset");
     return asynError;
   }
@@ -476,89 +514,89 @@ asynStatus Automation1MotorAxis::enablePCO(bool enable)
     return asynSuccess;
   }
 
-  Automation1PsoDistanceInput pulseSrc = pulseSource;
-  if (!Automation1_Command_PsoDistanceConfigureInputs(pC_->controller_, 1, axisNo_, &pulseSrc, 1)) {
+  if (!Automation1_Command_PsoDistanceConfigureInputs(pC_->controller_, taskNumber, axisNo_, &distanceInput, 1)) {
     logError("Error calling PsoDistanceConfigureInputs");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoDistanceConfigureFixedDistance(pC_->controller_, 1, axisNo_, std::lround(increment * countsPerUnitParam_))) {
+  if (!Automation1_Command_PsoDistanceConfigureFixedDistance(pC_->controller_, taskNumber, axisNo_, std::lround(increment * countsPerUnitParam_))) {
     logError("Error calling PsoDistanceConfigureFixedDistance");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoDistanceCounterOn(pC_->controller_, 1, axisNo_)) {
+  if (!Automation1_Command_PsoDistanceCounterOn(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoDistanceCounterOn");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoDistanceEventsOn(pC_->controller_, 1, axisNo_)) {
+  if (!Automation1_Command_PsoDistanceEventsOn(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoDistanceEventsOn");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWindowConfigureInput(pC_->controller_, 1, axisNo_, windowNumber, windowSource, 1)) {
+  if (!Automation1_Command_PsoWindowConfigureInput(pC_->controller_, taskNumber, axisNo_, windowNumber, windowInput, reverseDirection_)) {
     logError("Error calling PsoWindowConfigureInput");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWindowCounterSetValue(pC_->controller_, 1, axisNo_, windowNumber, std::lround(programPosition_ * countsPerUnitParam_))) {
+  if (!Automation1_Command_PsoWindowCounterSetValue(pC_->controller_, taskNumber, axisNo_, windowNumber, 
+       std::lround(programPosition_ * countsPerUnitParam_))) {
     logError("Error calling PsoWindowCCounterSetValue");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, 1, axisNo_, windowNumber, 
+  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, taskNumber, axisNo_, windowNumber, 
        std::lround(startPosition * countsPerUnitParam_), std::lround(endPosition * countsPerUnitParam_))) {
     logError("Error calling PsoWindowConfigureFixedRange");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWindowOutputOn(pC_->controller_, 1, axisNo_, windowNumber)) {
+  if (!Automation1_Command_PsoWindowOutputOn(pC_->controller_, taskNumber, axisNo_, windowNumber)) {
     logError("Error calling PsoWindowOutputOn");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoEventConfigureMask(pC_->controller_, 1, axisNo_, Automation1PsoEventMask_WindowMask)) {
+  if (!Automation1_Command_PsoEventConfigureMask(pC_->controller_, taskNumber, axisNo_, Automation1PsoEventMask_WindowMask)) {
     logError("Error calling PsoEventConfigureMask");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformConfigureMode(pC_->controller_, 1, axisNo_, Automation1PsoWaveformMode_Pulse)) {
+  if (!Automation1_Command_PsoWaveformConfigureMode(pC_->controller_, taskNumber, axisNo_, Automation1PsoWaveformMode_Pulse)) {
     logError("Error calling PsoWaveformConfigureMode");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformConfigurePulseFixedTotalTime(pC_->controller_, 1, axisNo_, std::lround(pulseWidth * clockFrequency))) {
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedTotalTime(pC_->controller_, taskNumber, axisNo_, pulseWidth * 1.e6)) {
     logError("Error calling PsoWaveformConfigurePulseFixedTotalTime");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformConfigurePulseFixedOnTime(pC_->controller_, 1, axisNo_, std::lround(pulseWidth * clockFrequency))) {
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedOnTime(pC_->controller_, taskNumber, axisNo_, pulseWidth * 1.e6)) {
     logError("Error calling PsoWaveformConfigurePulseFixedOnTime");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformConfigurePulseFixedCount(pC_->controller_, 1, axisNo_, 1)) {
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedCount(pC_->controller_, taskNumber, axisNo_, 1)) {
     logError("Error calling PsoWaveformConfigurePulseFixedCount");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformApplyPulseConfiguration(pC_->controller_, 1, axisNo_)) {
+  if (!Automation1_Command_PsoWaveformApplyPulseConfiguration(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoWaveformApplyPulseConfiguration");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoWaveformOn(pC_->controller_, 1, axisNo_)) {
+  if (!Automation1_Command_PsoWaveformOn(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoWaveformOn");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoOutputConfigureSource(pC_->controller_, 1, axisNo_, Automation1PsoOutputSource_Waveform)) {
+  if (!Automation1_Command_PsoOutputConfigureSource(pC_->controller_, taskNumber, axisNo_, Automation1PsoOutputSource_Waveform)) {
     logError("Error calling PsoOutputConfigureSource");
     return asynError;
   }
 
-  if (!Automation1_Command_PsoOutputConfigureOutput(pC_->controller_, 1, axisNo_, Automation1PsoOutputPin_iXL5eAuxiliaryMarkerSingleEnded)) {
+  if (!Automation1_Command_PsoOutputConfigureOutput(pC_->controller_, taskNumber, axisNo_, outputPin)) {
     logError("Error calling PsoOutputConfigureOutput");
     return asynError;
   }

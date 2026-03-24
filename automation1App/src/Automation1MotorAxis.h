@@ -54,6 +54,9 @@ private:
     
     double *fullProfilePositions_;
     int32_t fullProfilePositionsIndex_;
+
+    // Flag indicating that the sign of the motor and encoder direction are reversed
+    bool reverseDirection_;
     
     friend class Automation1MotorController;
 };
