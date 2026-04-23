@@ -33,6 +33,8 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     pC_(pC)
 {
     fullProfilePositions_ = NULL;
+    Automation1ConfiguredParameters configuredParameters;
+    double direction;
     
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
@@ -41,6 +43,25 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPosition, 0);
+
+    // Determine if this axis has reverse direction of encoder and motor direction
+    if (!Automation1_ConfiguredParameters_Create(&configuredParameters)) {
+      logError("Error calling ConfiguredParameters_Create");
+      return;
+    }
+  
+    if (!Automation1_Configuration_GetConfiguredParameters(pC_->controller_, configuredParameters)) {  
+      logError("Error calling GetConfiguredParameters");
+      return;
+    }
+    
+    if (!Automation1_ConfiguredParameters_GetAxisValue(configuredParameters, axisNo_, 
+         Automation1AxisParameterId_ReverseMotionDirection, &direction)) {
+      logError("Error calling ConfiguredParameters_GetAxisValue");
+      return;
+    }
+    reverseDirection_ = (direction != 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -311,7 +332,7 @@ asynStatus Automation1MotorAxis::defineProfile(double *positions, size_t numPoin
 asynStatus Automation1MotorAxis::poll(bool* moving)
 {
     bool pollSuccessfull = true;
-    double results[6];
+    double results[7];
     int axisStatus;
     int driveStatus;
     int enabled;
@@ -336,6 +357,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
     positionError = results[5];
+    programPosition_ = results[6];
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
@@ -442,6 +464,146 @@ skip:
     }
 
     return pollSuccessfull ? asynSuccess : asynError;
+}
+
+/** Enables or disables position compare output
+  *
+  * \param[in] enable A flag to enable (true) or disable (false) PCO
+*/
+asynStatus Automation1MotorAxis::enablePCO(bool enable)
+{
+  Automation1PsoDistanceInput distanceInput;
+  Automation1PsoWindowInput windowInput;
+  Automation1PsoOutputPin outputPin;
+  int recDirection, dir;
+  double recOffset;
+  int iTemp;
+  int windowNumber = 0;
+  int taskNumber = 1;
+  double startPosition, endPosition, increment, pulseWidth;
+
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_DistanceInput_, &iTemp);
+  distanceInput = (Automation1PsoDistanceInput)iTemp;
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_WindowInput_,   &iTemp);
+  windowInput = (Automation1PsoWindowInput)iTemp;
+  pC_->getIntegerParam(axisNo_, pC_->AUTOMATION1_PSO_OutputPin_,     &iTemp);
+  outputPin = (Automation1PsoOutputPin)iTemp;
+  pC_->getDoubleParam(axisNo_,  pC_->PCOStartPosition_, &startPosition);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOEndPosition_,   &endPosition);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOIncrement_,     &increment);
+  pC_->getDoubleParam(axisNo_,  pC_->PCOPulseWidth_,    &pulseWidth);
+  pC_->getIntegerParam(axisNo_, pC_->motorRecDirection_, &recDirection);
+  pC_->getDoubleParam(axisNo_,  pC_->motorRecOffset_,    &recOffset);
+
+  dir = recDirection ? -1 : 1;
+  startPosition = (startPosition - recOffset) * dir;
+  endPosition = (endPosition - recOffset) * dir;
+
+  printf("Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f," 
+         "reverseDirection=%d, distanceInput=%d, windowInput=%d, outputPin=%d, recDirection=%d, recOffset=%f, enable=%d\n",
+         startPosition, endPosition, increment, pulseWidth, reverseDirection_, distanceInput, windowInput, outputPin, 
+         recDirection, recOffset, enable);
+
+  if (!Automation1_Command_PsoReset(pC_->controller_, taskNumber, axisNo_)) {
+    logError("Error calling PsoReset");
+    return asynError;
+  }
+  
+  // If enable is 0 we are done
+  if (enable == 0) {
+    return asynSuccess;
+  }
+
+  if (!Automation1_Command_PsoDistanceConfigureInputs(pC_->controller_, taskNumber, axisNo_, &distanceInput, 1)) {
+    logError("Error calling PsoDistanceConfigureInputs");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceConfigureFixedDistance(pC_->controller_, taskNumber, axisNo_, std::lround(increment * countsPerUnitParam_))) {
+    logError("Error calling PsoDistanceConfigureFixedDistance");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceCounterOn(pC_->controller_, taskNumber, axisNo_)) {
+    logError("Error calling PsoDistanceCounterOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoDistanceEventsOn(pC_->controller_, taskNumber, axisNo_)) {
+    logError("Error calling PsoDistanceEventsOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowConfigureInput(pC_->controller_, taskNumber, axisNo_, windowNumber, windowInput, reverseDirection_)) {
+    logError("Error calling PsoWindowConfigureInput");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowCounterSetValue(pC_->controller_, taskNumber, axisNo_, windowNumber, 
+       std::lround(programPosition_ * countsPerUnitParam_))) {
+    logError("Error calling PsoWindowCCounterSetValue");
+    return asynError;
+  }
+
+  double lowerBound = std::lround(std::min(startPosition, endPosition) * countsPerUnitParam_);
+  double upperBound = std::lround(std::max(startPosition, endPosition) * countsPerUnitParam_);
+  if (!Automation1_Command_PsoWindowConfigureFixedRange(pC_->controller_, taskNumber, axisNo_, windowNumber, lowerBound, upperBound)) {
+    logError("Error calling PsoWindowConfigureFixedRange");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWindowOutputOn(pC_->controller_, taskNumber, axisNo_, windowNumber)) {
+    logError("Error calling PsoWindowOutputOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoEventConfigureMask(pC_->controller_, taskNumber, axisNo_, Automation1PsoEventMask_WindowMask)) {
+    logError("Error calling PsoEventConfigureMask");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigureMode(pC_->controller_, taskNumber, axisNo_, Automation1PsoWaveformMode_Pulse)) {
+    logError("Error calling PsoWaveformConfigureMode");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedTotalTime(pC_->controller_, taskNumber, axisNo_, pulseWidth * 1.e6)) {
+    logError("Error calling PsoWaveformConfigurePulseFixedTotalTime");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedOnTime(pC_->controller_, taskNumber, axisNo_, pulseWidth * 1.e6)) {
+    logError("Error calling PsoWaveformConfigurePulseFixedOnTime");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformConfigurePulseFixedCount(pC_->controller_, taskNumber, axisNo_, 1)) {
+    logError("Error calling PsoWaveformConfigurePulseFixedCount");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformApplyPulseConfiguration(pC_->controller_, taskNumber, axisNo_)) {
+    logError("Error calling PsoWaveformApplyPulseConfiguration");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoWaveformOn(pC_->controller_, taskNumber, axisNo_)) {
+    logError("Error calling PsoWaveformOn");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoOutputConfigureSource(pC_->controller_, taskNumber, axisNo_, Automation1PsoOutputSource_Waveform)) {
+    logError("Error calling PsoOutputConfigureSource");
+    return asynError;
+  }
+
+  if (!Automation1_Command_PsoOutputConfigureOutput(pC_->controller_, taskNumber, axisNo_, outputPin)) {
+    logError("Error calling PsoOutputConfigureOutput");
+    return asynError;
+  }
+  printf("Automation1MotorAxis::enablePCO exit success\n");
+  return asynSuccess;
+
 }
 
 /** Logs an driver error and error details from the C API.  Made to reduce duplicate code.

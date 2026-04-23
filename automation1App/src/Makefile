@@ -12,8 +12,8 @@ endif
 LIBRARY_IOC_WIN32 = Automation1
 LIBRARY_IOC_Linux = Automation1
 
-SRCS += Automation1MotorAxis.cpp
-SRCS += Automation1MotorController.cpp
+Automation1_SRCS += Automation1MotorAxis.cpp
+Automation1_SRCS += Automation1MotorController.cpp
 
 ifdef MOTOR_AUTOMATION1
 automation1compiler_DIR += $(MOTOR_AUTOMATION1)/bin/$(EPICS_HOST_ARCH)
@@ -37,6 +37,15 @@ endif
 endif
 
 DBD += devAutomation1Motor.dbd
+
+PROD += PSOTest
+PSOTest_SRCS += PSOTest.cpp
+ifeq ($(OS_CLASS),Linux)
+ifeq (x86_64, $(findstring x86_64, $(T_A)))
+	PSOTest_SYS_LIBS += automation1compiler
+	PSOTest_SYS_LIBS += automation1c
+endif
+endif
 
 Automation1_LIBS += motor asyn
 Automation1_LIBS += $(EPICS_BASE_IOC_LIBS)

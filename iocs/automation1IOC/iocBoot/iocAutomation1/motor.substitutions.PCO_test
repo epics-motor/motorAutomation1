@@ -1,0 +1,44 @@
+
+file "$(MOTOR)/db/basic_asyn_motor.db"
+{
+pattern
+{P,      N,       M,        DTYP,         PORT,  ADDR,     DESC,  EGU,   DIR,   VELO,  VBAS, ACCL, BDST, BVEL, BACC,   MRES,          PREC,   DHLM, DLLM,    INIT}
+{Auto1:, 1, "m$(N)", "asynMotor",  Automation1,     0,   "Omega", deg,   Pos,   60.0,   0.1,   .2,    0,    1,   .2,  3.9405768e-6,    3,     3600,  -3600,    ""}
+}
+
+file "$(MOTOR)/db/profileMoveController.template"
+{
+pattern
+{     P,     R,        PORT, NAXES, NPOINTS, NPULSES, TIMEOUT}
+{Auto1:,  pm1:, Automation1,     1,    2000,    2000,       1}
+}
+
+file "$(MOTOR)/db/profileMoveAxis.template"
+{
+pattern
+{     P,      R, M,         PORT, ADDR, NPOINTS, NREADBACK,     MOTOR, PREC, TIMEOUT}
+{Auto1:,   pm1:, 1,  Automation1,    0,    2000,      2000,  Auto1:m1,    3,       1}
+}
+
+file "$(MOTOR)/db/positionCompare.template"
+{
+pattern
+{     P,    M,       PORT,    ADDR, PREC}
+{Auto1:,   m1,  Automation1,    0,   3}
+}
+
+
+file "$(TOP)/db/Automation1MotorController.template"
+{
+pattern
+{     P,        PORT,     TIMEOUT}
+{Auto1:, Automation1,           1}
+}
+
+# The PSO values below are for the iXL5e controller
+file "$(TOP)/db/Automation1MotorAxis.template"
+{
+pattern
+{     P,	M,        PORT,	ADDR,    PSO_DISTANCE_INPUT, PSO_WINDOW_INPUT, PSO_OUTPUT_PIN, TIMEOUT}
+{Auto1:, 	m1, Automation1,	0,         190,                190,             135,          	1}
+}

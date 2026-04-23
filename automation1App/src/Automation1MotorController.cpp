@@ -36,7 +36,7 @@ static const char *driverName = "Automation1MotorController";
   * \param[in] idlePollPeriod     The time between polls when no axis is moving.
 */
 Automation1MotorController::Automation1MotorController(const char* portName, const char* hostName, int numAxes, double movingPollPeriod, double idlePollPeriod, int commandExecuteTask, int profileMoveTask)
-    : asynMotorController(portName, numAxes, NUM_AUTOMATION1_PARAMS,
+    : asynMotorController(portName, numAxes, 0,
         0, // No additional interfaces beyond those in base class
         0, // No additional callback interfaces beyond those in base class
         ASYN_CANBLOCK | ASYN_MULTIDEVICE,
@@ -130,6 +130,11 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_PM_PulseSrcString,     asynParamInt32,        &AUTOMATION1_PM_PulseSrc_);
     createParam(AUTOMATION1_PM_PulseOutString,     asynParamInt32,        &AUTOMATION1_PM_PulseOut_);
     createParam(AUTOMATION1_PM_PulseAxisString,    asynParamInt32,        &AUTOMATION1_PM_PulseAxis_);
+    //
+    createParam(AUTOMATION1_PSO_DistanceInputString, asynParamInt32,     &AUTOMATION1_PSO_DistanceInput_);
+    createParam(AUTOMATION1_PSO_WindowInputString,   asynParamInt32,     &AUTOMATION1_PSO_WindowInput_);
+    createParam(AUTOMATION1_PSO_OutputPinString,     asynParamInt32,     &AUTOMATION1_PSO_OutputPin_);
+
 }
 
 /* * Creates a new Automation1 controller object.
@@ -222,7 +227,7 @@ asynStatus Automation1MotorController::writeFloat64Array(asynUser *pasynUser, ep
     int function = pasynUser->reason;
     asynMotorAxis *pAxis;
     asynStatus status = asynSuccess;
-    static const char *functionName = "writeFloat64Array";
+    //static const char *functionName = "writeFloat64Array";
     
     pAxis = getAxis(pasynUser);
     if (!pAxis) return asynError;
@@ -713,6 +718,7 @@ asynStatus Automation1MotorController::buildProfile()
     
     for (i = 0; i < numSegments; i++)
     {
+        segmentTime = 0;
         for (j = 0; j < numUsedAxes; j++)
         {
             axis = pAxes_[profileAxes_[j]];

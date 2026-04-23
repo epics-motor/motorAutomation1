@@ -35,7 +35,11 @@
 #define AUTOMATION1_PM_PulseSrcString       "AUTOMATION1_PM_PULSE_SRC"
 #define AUTOMATION1_PM_PulseOutString       "AUTOMATION1_PM_PULSE_OUT"
 #define AUTOMATION1_PM_PulseAxisString      "AUTOMATION1_PM_PULSE_AXIS"
-#define NUM_AUTOMATION1_PARAMS 15
+// PSO configuration parameters, model-specific
+#define AUTOMATION1_PSO_DistanceInputString "AUTOMATION1_PSO_DISTANCE_INPUT"
+#define AUTOMATION1_PSO_WindowInputString   "AUTOMATION1_PSO_WINDOW_INPUT"
+#define AUTOMATION1_PSO_OutputPinString     "AUTOMATION1_PSO_OUTPUT_PIN"
+
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -82,7 +86,10 @@ protected:
     int AUTOMATION1_PM_PulseSrc_;
     int AUTOMATION1_PM_PulseOut_;
     int AUTOMATION1_PM_PulseAxis_;
-    int parameters[NUM_AUTOMATION1_PARAMS];
+    int AUTOMATION1_PSO_DistanceInput_;
+    int AUTOMATION1_PSO_WindowInput_;
+    int AUTOMATION1_PSO_OutputPin_;
+
 
 private:
 

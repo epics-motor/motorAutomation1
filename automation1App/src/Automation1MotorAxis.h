@@ -28,6 +28,7 @@ public:
     asynStatus setPosition(double position);
     asynStatus setClosedLoop(bool closedLoop);
     asynStatus defineProfile(double *positions, size_t numPoints);
+    asynStatus enablePCO(bool enable);
 
 private:
     // Pointer to asynMotorController to which the axis belongs.
@@ -43,6 +44,7 @@ private:
     void logError(const char* driverMessage);
     
     double countsPerUnitParam_;
+    double programPosition_;
     
     double profilePreDistance_;
     double profilePrePosition_;
@@ -52,6 +54,9 @@ private:
     
     double *fullProfilePositions_;
     int32_t fullProfilePositionsIndex_;
+
+    // Flag indicating that the sign of the motor and encoder direction are reversed
+    bool reverseDirection_;
     
     friend class Automation1MotorController;
 };
