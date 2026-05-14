@@ -54,6 +54,9 @@ public:
     asynStatus writeFloat64Array(asynUser *pasynUser, epicsFloat64 *value, size_t nElements);
     void createAsynParams(void);
 
+    // Hexapod initialization
+    asynStatus initializeHexapod(int hexapodIndex, int firstHexapodAxis);
+
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
     asynStatus definePulses(int pulseAxis, size_t numPulses);

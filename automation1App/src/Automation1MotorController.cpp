@@ -1435,6 +1435,30 @@ void Automation1MotorController::logErrorV(int messageIndex, const char* fmt, st
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR, "[Automation1 Driver] %s\n", buffer);
 }
 
+asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int firstHexapodAxis)
+{
+    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+              "[Automation1 Driver] initializeHexapod: hexapodIndex=%d, firstHexapodAxis=%d\n",
+              hexapodIndex, firstHexapodAxis);
+    return asynSuccess;
+}
+
+asynStatus Automation1CreateHexapod(const char *portName, int hexapodIndex, int firstHexapodAxis)
+{
+    Automation1MotorController *pC;
+    static const char *functionName = "Automation1CreateHexapod";
+
+    pC = (Automation1MotorController*) findAsynPortDriver(portName);
+    if (!pC)
+    {
+        printf("Automation1:%s: Error port %s not found\n",
+               functionName, portName);
+        return asynError;
+    }
+    pC->initializeHexapod(hexapodIndex, firstHexapodAxis);
+    return asynSuccess;
+}
+
 asynStatus Automation1CreateProfile(const char *portName, int maxPoints, int maxPulses)
 {
     Automation1MotorController *pC;
@@ -1465,6 +1489,20 @@ static void configAutomation1ProfileCallFunc(const iocshArgBuf* args)
     Automation1CreateProfile(args[0].sval, args[1].ival, args[2].ival);
 }
 
+// Hexapod Setup arguments
+static const iocshArg Automation1CreateHexapodArg0 = {"Port name", iocshArgString};
+static const iocshArg Automation1CreateHexapodArg1 = {"Hexapod index", iocshArgInt};
+static const iocshArg Automation1CreateHexapodArg2 = {"First hexapod axis", iocshArgInt};
+
+static const iocshArg* const Automation1CreateHexapodArgs[3] = {&Automation1CreateHexapodArg0, &Automation1CreateHexapodArg1, &Automation1CreateHexapodArg2};
+
+static const iocshFuncDef configAutomation1Hexapod = {"Automation1CreateHexapod", 3, Automation1CreateHexapodArgs};
+
+static void configAutomation1HexapodCallFunc(const iocshArgBuf* args)
+{
+    Automation1CreateHexapod(args[0].sval, args[1].ival, args[2].ival);
+}
+
 // Code for iocsh registration
 static const iocshArg Automation1CreateControllerArg0 = { "Port name", iocshArgString };
 static const iocshArg Automation1CreateControllerArg1 = { "Host name", iocshArgString };
@@ -1490,6 +1528,7 @@ static void Automation1Register(void)
 {
     iocshRegister(&Automation1CreateControllerDef, Automation1CreateContollerCallFunc);
     iocshRegister(&configAutomation1Profile, configAutomation1ProfileCallFunc);
+    iocshRegister(&configAutomation1Hexapod, configAutomation1HexapodCallFunc);
 }
 
 extern "C" {
