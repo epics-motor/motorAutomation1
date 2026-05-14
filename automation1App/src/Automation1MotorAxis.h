@@ -43,7 +43,10 @@ private:
     void logError(const char* driverMessage);
     
     double countsPerUnitParam_;
-    
+
+    // True if this axis is part of a hexapod (set by Automation1MotorController::initializeHexapod).
+    bool isHexapodAxis_;
+
     double profilePreDistance_;
     double profilePrePosition_;
     double profilePostDistance_;

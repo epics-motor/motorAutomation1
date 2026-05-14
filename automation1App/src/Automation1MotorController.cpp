@@ -68,6 +68,10 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     profilePulseDisplacements_ = NULL;
     fullProfileTimes_ = NULL;
     globalVarOffset_ = 255;
+    numHexapods_ = 0;
+    for (int i = 0; i < MAX_AUTOMATION1_HEXAPODS; i++) {
+        firstHexapodAxisIndex_[i] = 0;
+    }
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
     createAsynParams();
@@ -1470,6 +1474,32 @@ asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int f
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
               "[Automation1 Driver] initializeHexapod: hexapodIndex=%d, firstHexapodAxis=%d\n",
               hexapodIndex, firstHexapodAxis);
+
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        logError("initializeHexapod: invalid hexapodIndex=%d (must be 0..%d)",
+                 hexapodIndex, MAX_AUTOMATION1_HEXAPODS - 1);
+        return asynError;
+    }
+
+    if (firstHexapodAxis < 0 || firstHexapodAxis + HEXAPOD_NUM_AXES > numAxes_) {
+        logError("initializeHexapod: invalid firstHexapodAxis=%d (numAxes=%d, need %d axes)",
+                 firstHexapodAxis, numAxes_, HEXAPOD_NUM_AXES);
+        return asynError;
+    }
+
+    firstHexapodAxisIndex_[hexapodIndex] = firstHexapodAxis;
+
+    for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
+        int axisNo = firstHexapodAxis + i;
+        Automation1MotorAxis *pAxis = getAxis(axisNo);
+        if (!pAxis) {
+            logError("initializeHexapod: axis %d not found", axisNo);
+            continue;
+        }
+        pAxis->isHexapodAxis_ = true;
+    }
+
+    numHexapods_++;
     return asynSuccess;
 }
 

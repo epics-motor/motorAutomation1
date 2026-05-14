@@ -15,6 +15,8 @@
 #include <cstdarg>
 
 #define MAX_AUTOMATION1_AXES 32
+#define MAX_AUTOMATION1_HEXAPODS 2
+#define HEXAPOD_NUM_AXES 6
 #define PROFILE_MOVE_ABORT_TIMEOUT 1000
 #define DATA_POINTS_PER_SECOND 1000
 
@@ -116,7 +118,11 @@ private:
     double *fullProfileTimes_;
     int32_t fullProfileTimesIndex_;
     int32_t globalVarOffset_;
-    
+
+    // Hexapod tracking state
+    int numHexapods_;
+    int firstHexapodAxisIndex_[MAX_AUTOMATION1_HEXAPODS];
+
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
 

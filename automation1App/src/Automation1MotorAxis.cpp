@@ -33,7 +33,8 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     pC_(pC)
 {
     fullProfilePositions_ = NULL;
-    
+    isHexapodAxis_ = false;
+
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_DriveStatus, 0);
