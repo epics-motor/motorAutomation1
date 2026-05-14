@@ -1435,6 +1435,36 @@ void Automation1MotorController::logErrorV(int messageIndex, const char* fmt, st
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR, "[Automation1 Driver] %s\n", buffer);
 }
 
+asynStatus Automation1MotorController::writeReadInt(const char *expression, int64_t *valueOut)
+{
+    static const char *functionName = "writeReadInt";
+    static const char *prefix = "$ireturn[0]=";
+
+    if (!expression || !valueOut) {
+        logError("%s: NULL argument", functionName);
+        return asynError;
+    }
+
+    // Build "$ireturn[0]=<expression>"
+    size_t len = strlen(prefix) + strlen(expression) + 1;
+    std::vector<char> aeroScriptText(len);
+    snprintf(aeroScriptText.data(), len, "%s%s", prefix, expression);
+
+    int64_t result = 0;
+    if (!Automation1_Command_ExecuteAndReturnAeroScriptInteger(
+            controller_, commandExecuteTask_, aeroScriptText.data(), &result))
+    {
+        logApiError("Could not execute AeroScript integer command");
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "[Automation1 Driver] %s: failed expression: \"%s\"\n",
+                  functionName, aeroScriptText.data());
+        return asynError;
+    }
+
+    *valueOut = result;
+    return asynSuccess;
+}
+
 asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int firstHexapodAxis)
 {
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,

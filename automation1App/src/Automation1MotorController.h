@@ -143,6 +143,12 @@ private:
     // Log an error with asyn and post a message PV if messageIndex != -1
     void logErrorV(int messageIndex, const char* fmt, std::va_list agrs);
 
+    // Execute an AeroScript integer-returning expression on commandExecuteTask_.
+    // `expression` is the right-hand side (e.g. "GetHexapodState(0)"); the method
+    // prepends "$ireturn[0]=" before sending. On success, *valueOut receives the
+    // returned integer.
+    asynStatus writeReadInt(const char *expression, int64_t *valueOut);
+
     friend class Automation1MotorAxis;
 };
 
