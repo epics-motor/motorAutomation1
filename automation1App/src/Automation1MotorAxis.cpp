@@ -492,6 +492,8 @@ asynStatus Automation1MotorAxis::enablePCO(bool enable)
   pC_->getDoubleParam(axisNo_,  pC_->PCOEndPosition_,   &endPosition);
   pC_->getDoubleParam(axisNo_,  pC_->PCOIncrement_,     &increment);
   pC_->getDoubleParam(axisNo_,  pC_->PCOPulseWidth_,    &pulseWidth);
+  // pulseWidth units are microseconds, convert to seconds
+  pulseWidth = pulseWidth/1e6;
   pC_->getIntegerParam(axisNo_, pC_->motorRecDirection_, &recDirection);
   pC_->getDoubleParam(axisNo_,  pC_->motorRecOffset_,    &recOffset);
 
@@ -499,10 +501,11 @@ asynStatus Automation1MotorAxis::enablePCO(bool enable)
   startPosition = (startPosition - recOffset) * dir;
   endPosition = (endPosition - recOffset) * dir;
 
-  printf("Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f," 
-         "reverseDirection=%d, distanceInput=%d, windowInput=%d, outputPin=%d, recDirection=%d, recOffset=%f, enable=%d\n",
-         startPosition, endPosition, increment, pulseWidth, reverseDirection_, distanceInput, windowInput, outputPin, 
-         recDirection, recOffset, enable);
+  asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
+            "Automation1MotorAxis::enablePCO entry, startPosition=%f, endPosition=%f, increment=%f, pulseWidth=%f," 
+            "reverseDirection=%d, distanceInput=%d, windowInput=%d, outputPin=%d, recDirection=%d, recOffset=%f, enable=%d\n",
+            startPosition, endPosition, increment, pulseWidth, reverseDirection_, distanceInput, windowInput, outputPin, 
+            recDirection, recOffset, enable);
 
   if (!Automation1_Command_PsoReset(pC_->controller_, taskNumber, axisNo_)) {
     logError("Error calling PsoReset");
