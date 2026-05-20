@@ -1518,6 +1518,7 @@ asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int f
             continue;
         }
         pAxis->isHexapodAxis_ = true;
+        pAxis->hexapodIndex_ = hexapodIndex;
     }
 
     numHexapods_++;

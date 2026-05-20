@@ -47,6 +47,10 @@ private:
     // True if this axis is part of a hexapod (set by Automation1MotorController::initializeHexapod).
     bool isHexapodAxis_;
 
+    // Index of the hexapod this axis belongs to (-1 if not a hexapod axis).
+    // Set by Automation1MotorController::initializeHexapod when isHexapodAxis_ is set true.
+    int hexapodIndex_;
+
     double profilePreDistance_;
     double profilePrePosition_;
     double profilePostDistance_;

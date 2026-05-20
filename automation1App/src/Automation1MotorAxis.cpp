@@ -34,6 +34,7 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
 {
     fullProfilePositions_ = NULL;
     isHexapodAxis_ = false;
+    hexapodIndex_ = -1;
 
     Automation1_StatusConfig_Create(&(statusConfig_));
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisStatus, 0);
@@ -249,6 +250,23 @@ asynStatus Automation1MotorAxis::setClosedLoop(bool closedLoop)
 {
     if (closedLoop)
     {
+        // Hexapod-axis enable gate: only allow if parent hexapod is in Enabled state.
+        if (isHexapodAxis_)
+        {
+            // Refresh the cached hexapod state, then read it back.
+            pC_->getHexapodState(hexapodIndex_);
+            int hexState = 0;
+            pC_->getIntegerParam(hexapodIndex_, pC_->AUTOMATION1_HXP_State_, &hexState);
+            if (hexState != 1)
+            {
+                asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
+                          "[Automation1 Driver] setClosedLoop: axis %d enable rejected; "
+                          "hexapod %d state=%d (must be 1=Enabled)\n",
+                          axisNo_, hexapodIndex_, hexState);
+                return asynError;
+            }
+        }
+
         // Automatically attempt to clear faults before attempting to enable the motor
         if(!Automation1_Command_AcknowledgeAll(pC_->controller_, pC_->commandExecuteTask_))
         {
