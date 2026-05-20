@@ -40,7 +40,8 @@
 // Hexapod readback parameters
 #define AUTOMATION1_HXP_StateString         "AUTOMATION1_HXP_STATE"
 #define AUTOMATION1_HXP_ReadModeString      "AUTOMATION1_HXP_READ_MODE"
-#define NUM_AUTOMATION1_PARAMS 17
+#define AUTOMATION1_HXP_WriteModeString     "AUTOMATION1_HXP_WRITE_MODE"
+#define NUM_AUTOMATION1_PARAMS 18
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -65,6 +66,9 @@ public:
     // Hexapod state/mode readback (called from poll)
     asynStatus getHexapodState(int hexapodIndex);
     asynStatus getHexapodMode(int hexapodIndex);
+
+    // Hexapod mode setpoint (called from writeInt32)
+    asynStatus setHexapodMode(int hexapodIndex, int mode);
 
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
@@ -96,6 +100,7 @@ protected:
     int AUTOMATION1_PM_PulseAxis_;
     int AUTOMATION1_HXP_State_;
     int AUTOMATION1_HXP_ReadMode_;
+    int AUTOMATION1_HXP_WriteMode_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:

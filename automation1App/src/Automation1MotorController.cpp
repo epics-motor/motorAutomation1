@@ -137,6 +137,7 @@ void Automation1MotorController::createAsynParams(void)
     //
     createParam(AUTOMATION1_HXP_StateString,       asynParamInt32,        &AUTOMATION1_HXP_State_);
     createParam(AUTOMATION1_HXP_ReadModeString,    asynParamInt32,        &AUTOMATION1_HXP_ReadMode_);
+    createParam(AUTOMATION1_HXP_WriteModeString,   asynParamInt32,        &AUTOMATION1_HXP_WriteMode_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -199,8 +200,11 @@ asynStatus Automation1MotorController::writeOctet(asynUser *pasynUser, const cha
 asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt32 value)
 {
     int function = pasynUser->reason;
+    int addr = 0;
     bool status = true;
-    
+
+    getAddress(pasynUser, &addr);
+
     if (function == AUTOMATION1_C_AckAll_) 
     {        
 	    if(!Automation1_Command_AcknowledgeAll(controller_, commandExecuteTask_))
@@ -212,6 +216,10 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
         {
 	        (getAxis(i))->setIntegerParam(this->motorStatusProblem_,0);            // Unset "Problem" status bit on all axes.
 	    }
+    }
+    else if (function == AUTOMATION1_HXP_WriteMode_)
+    {
+        setHexapodMode(addr, value);
     }
 	 
     //Call base class method. This will handle callCallbacks even if the function was handled here.
@@ -1542,6 +1550,65 @@ asynStatus Automation1MotorController::getHexapodMode(int hexapodIndex)
         return asynError;
     }
     setIntegerParam(hexapodIndex, AUTOMATION1_HXP_ReadMode_, (epicsInt32)value);
+    return asynSuccess;
+}
+
+asynStatus Automation1MotorController::setHexapodMode(int hexapodIndex, int mode)
+{
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        logError("setHexapodMode: invalid hexapodIndex=%d", hexapodIndex);
+        return asynError;
+    }
+
+    char command[256];
+
+    switch (mode) {
+        case 0: {  // Disabled
+            snprintf(command, sizeof(command), "DisableHexapod(%d)", hexapodIndex);
+            if (!Automation1_Command_Execute(controller_, commandExecuteTask_, command)) {
+                logApiError("setHexapodMode: DisableHexapod failed");
+                return asynError;
+            }
+            // Build Disable([@<a0>, @<a1>, ..., @<a5>]) from firstHexapodAxisIndex_
+            int first = firstHexapodAxisIndex_[hexapodIndex];
+            int n = snprintf(command, sizeof(command), "Disable([");
+            for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
+                n += snprintf(command + n, sizeof(command) - n,
+                              "%s@%d", (i == 0 ? "" : ", "), first + i);
+            }
+            snprintf(command + n, sizeof(command) - n, "])");
+            if (!Automation1_Command_Execute(controller_, commandExecuteTask_, command)) {
+                logApiError("setHexapodMode: Disable(axis list) failed");
+                return asynError;
+            }
+            break;
+        }
+
+        case 1:  // Local
+            snprintf(command, sizeof(command), "EnableLocalMode(%d)", hexapodIndex);
+            if (!Automation1_Command_Execute(controller_, commandExecuteTask_, command)) {
+                logApiError("setHexapodMode: EnableLocalMode failed");
+                return asynError;
+            }
+            break;
+
+        case 2:  // Global
+            snprintf(command, sizeof(command), "EnableGlobalMode(%d)", hexapodIndex);
+            if (!Automation1_Command_Execute(controller_, commandExecuteTask_, command)) {
+                logApiError("setHexapodMode: EnableGlobalMode failed");
+                return asynError;
+            }
+            break;
+
+        case 3:  // Strut
+            logError("setHexapodMode: use of Strut mode from EPICS is not allowed");
+            return asynError;
+
+        default:
+            logError("setHexapodMode: invalid mode=%d", mode);
+            return asynError;
+    }
+
     return asynSuccess;
 }
 

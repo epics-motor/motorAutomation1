@@ -45,3 +45,21 @@ record(mbbi, "$(P)$(H)Mode_RBV")
     field(THVL, "3")
     field(THST, "Strut")
 }
+
+##############################################################
+# Hexapod mode setpoint
+##############################################################
+record(mbbo, "$(P)$(H)Mode")
+{
+    field(DESC, "Hexapod mode setpoint")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_HXP_WRITE_MODE")
+    field(SCAN, "Passive")
+    field(PINI, "NO")
+    field(ZRVL, "0")
+    field(ZRST, "Disabled")
+    field(ONVL, "1")
+    field(ONST, "Local")
+    field(TWVL, "2")
+    field(TWST, "Global")
+}
