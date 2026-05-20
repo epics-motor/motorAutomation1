@@ -134,6 +134,9 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_PM_PulseSrcString,     asynParamInt32,        &AUTOMATION1_PM_PulseSrc_);
     createParam(AUTOMATION1_PM_PulseOutString,     asynParamInt32,        &AUTOMATION1_PM_PulseOut_);
     createParam(AUTOMATION1_PM_PulseAxisString,    asynParamInt32,        &AUTOMATION1_PM_PulseAxis_);
+    //
+    createParam(AUTOMATION1_HXP_StateString,       asynParamInt32,        &AUTOMATION1_HXP_State_);
+    createParam(AUTOMATION1_HXP_ReadModeString,    asynParamInt32,        &AUTOMATION1_HXP_ReadMode_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -1358,6 +1361,13 @@ asynStatus Automation1MotorController::poll()
     int currentPoint;
     bool pollOk = true;
 
+    // Poll registered hexapods (runs every poll, regardless of profile-move state)
+    for (int h = 0; h < numHexapods_; h++) {
+        getHexapodState(h);
+        getHexapodMode(h);
+        callParamCallbacks(h);
+    }
+
     if (!dataCollectionConfig_) goto done;
 
     getIntegerParam(profileNumPoints_, &numPoints);
@@ -1500,6 +1510,38 @@ asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int f
     }
 
     numHexapods_++;
+    return asynSuccess;
+}
+
+asynStatus Automation1MotorController::getHexapodState(int hexapodIndex)
+{
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        return asynError;
+    }
+    char expression[64];
+    snprintf(expression, sizeof(expression), "GetHexapodState(%d)", hexapodIndex);
+
+    int64_t value = 0;
+    if (writeReadInt(expression, &value) != asynSuccess) {
+        return asynError;
+    }
+    setIntegerParam(hexapodIndex, AUTOMATION1_HXP_State_, (epicsInt32)value);
+    return asynSuccess;
+}
+
+asynStatus Automation1MotorController::getHexapodMode(int hexapodIndex)
+{
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        return asynError;
+    }
+    char expression[64];
+    snprintf(expression, sizeof(expression), "GetHexapodMode(%d)", hexapodIndex);
+
+    int64_t value = 0;
+    if (writeReadInt(expression, &value) != asynSuccess) {
+        return asynError;
+    }
+    setIntegerParam(hexapodIndex, AUTOMATION1_HXP_ReadMode_, (epicsInt32)value);
     return asynSuccess;
 }
 

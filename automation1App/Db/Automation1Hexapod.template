@@ -1,0 +1,47 @@
+# Macro paramters:
+#   $(P)        - PV name prefix
+#   $(H)        - Hexapod name (e.g. "HXP1:")
+#   $(PORT)     - asyn port for this controller
+#   $(ADDR)     - asyn addr for this hexapod (the hexapod index, 0..MAX_AUTOMATION1_HEXAPODS-1)
+#   $(TIMEOUT)  - asyn timeout
+#
+
+##############################################################
+# Hexapod state readback
+##############################################################
+record(mbbi, "$(P)$(H)State_RBV")
+{
+    field(DESC, "Hexapod state")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_HXP_STATE")
+    field(SCAN, "I/O Intr")
+    field(ZRVL, "0")
+    field(ZRST, "Reset")
+    field(ONVL, "1")
+    field(ONST, "Enabled")
+    field(TWVL, "2")
+    field(TWST, "Fault")
+    field(THVL, "3")
+    field(THST, "Disabled")
+    field(FRVL, "4")
+    field(FRST, "Strut")
+}
+
+##############################################################
+# Hexapod mode readback
+##############################################################
+record(mbbi, "$(P)$(H)Mode_RBV")
+{
+    field(DESC, "Hexapod mode")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),$(ADDR),$(TIMEOUT=4))AUTOMATION1_HXP_READ_MODE")
+    field(SCAN, "I/O Intr")
+    field(ZRVL, "0")
+    field(ZRST, "Disabled")
+    field(ONVL, "1")
+    field(ONST, "Local")
+    field(TWVL, "2")
+    field(TWST, "Global")
+    field(THVL, "3")
+    field(THST, "Strut")
+}
