@@ -219,7 +219,10 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
     }
     else if (function == AUTOMATION1_HXP_WriteMode_)
     {
-        setHexapodMode(addr, value);
+        asynStatus modeStatus = setHexapodMode(addr, value);
+        if (modeStatus != asynSuccess) {
+            return modeStatus;
+        }
     }
 	 
     //Call base class method. This will handle callCallbacks even if the function was handled here.
