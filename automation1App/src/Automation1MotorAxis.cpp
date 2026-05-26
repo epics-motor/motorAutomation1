@@ -43,6 +43,7 @@ Automation1MotorAxis::Automation1MotorAxis(Automation1MotorController* pC, int a
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramVelocityFeedback, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_AxisFault, 0);
     Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_PositionError, 0);
+    Automation1_StatusConfig_AddAxisStatusItem(statusConfig_, axisNo, Automation1AxisStatusItem_ProgramPositionCommand, 0);
 
     // Gain Support is required for setClosedLoop to be called
     setIntegerParam(pC->motorStatusGainSupport_, 1);
@@ -334,6 +335,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     int axisStatus;
     int driveStatus;
     int enabled;
+    double programPositionCommand;
     double programPositionFeedback;
     double programVelocityFeedback;
     double positionError;
@@ -355,6 +357,7 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     programVelocityFeedback = results[3];
     axisFaults = (int)results[4];
     positionError = results[5];
+    programPositionCommand = results[6];
 
     asynPrint(pC_->pasynUserSelf, ASYN_TRACEIO_DRIVER,
               "Automation1_Status_GetResults(%d): axis status = %d; drive status = %d; position feedback = %lf; velocity feedback %lf\n",
@@ -383,7 +386,14 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
 
     enabled = driveStatus & Automation1DriveStatus_Enabled;
     setIntegerParam(pC_->motorStatusPowerOn_, enabled);
-    setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);
+    if (isHexapodAxis_)
+    {
+        // Use the commanded position as the RMP for hexapod axes
+        setDoubleParam(pC_->motorPosition_, programPositionCommand * countsPerUnitParam_);
+    } else {
+        // Retain the original RMP behavior for non-hexapod axes
+        setDoubleParam(pC_->motorPosition_, programPositionFeedback * countsPerUnitParam_);
+    }
     setDoubleParam(pC_->motorEncoderPosition_, programPositionFeedback * countsPerUnitParam_);
 
     setDoubleParam(pC_->AUTOMATION1_C_Velocity_, programVelocityFeedback);  //ajc-osl
