@@ -331,7 +331,8 @@ asynStatus Automation1MotorAxis::defineProfile(double *positions, size_t numPoin
 asynStatus Automation1MotorAxis::poll(bool* moving)
 {
     bool pollSuccessfull = true;
-    double results[6];
+    // The size of results needs to match the number of status items that are added to statusConfig_ in the constructor
+    double results[7];
     int axisStatus;
     int driveStatus;
     int enabled;
