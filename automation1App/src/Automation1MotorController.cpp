@@ -1661,23 +1661,79 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
         return asynError;
     }
 
-    // 2. Read target positions and velocity from the parameter library.
-    double targets[HEXAPOD_NUM_AXES];
-    double velocity = 0.0;
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetX_, &targets[0]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetY_, &targets[1]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetZ_, &targets[2]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetA_, &targets[3]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetB_, &targets[4]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetC_, &targets[5]);
-    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_Velocity_, &velocity);
+    // 2. Read target positions and velocity from the parameter library (EPICS user units).
+    double userTargets[HEXAPOD_NUM_AXES];
+    double userVelocity = 0.0;
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetX_, &userTargets[0]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetY_, &userTargets[1]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetZ_, &userTargets[2]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetA_, &userTargets[3]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetB_, &userTargets[4]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetC_, &userTargets[5]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_Velocity_, &userVelocity);
 
-    // 3. Build the axis index array from firstHexapodAxisIndex_.
+    // 3. Build the axis index array from firstHexapodAxisIndex_, and convert targets
+    //    from EPICS user units to Automation1 units per the formula:
+    //      dir_factor      = motorRecDirection ? -1 : 1
+    //      a1_axis_res     = 1.0 / countsPerUnitParam_
+    //      a1_target       = (user_target - motorRecOffset)
+    //                        / (dir_factor * motorRecResolution)
+    //                        * a1_axis_res
     int32_t axes[HEXAPOD_NUM_AXES];
+    double  targets[HEXAPOD_NUM_AXES];           // Automation1 controller units
+    double  velocityResolution = 0.0;            // motorRecResolution_ of axis 0 (X)
+    double  velocityA1AxisRes  = 0.0;            // 1/countsPerUnitParam_ of axis 0 (X)
     int first = firstHexapodAxisIndex_[hexapodIndex];
+
     for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
-        axes[i] = (int32_t)(first + i);
+        int axisNo = first + i;
+        axes[i] = (int32_t)axisNo;
+
+        double resolution = 0.0;
+        double offset     = 0.0;
+        int    direction  = 0;
+        int    rstatus    = 0;
+
+        rstatus |= getDoubleParam(axisNo, motorRecResolution_, &resolution);
+        rstatus |= getDoubleParam(axisNo, motorRecOffset_,     &offset);
+        rstatus |= getIntegerParam(axisNo, motorRecDirection_, &direction);
+        if (rstatus) {
+            logError("hexapodMoveAll: failed to read motorRec fields for axis %d", axisNo);
+            return asynError;
+        }
+        if (resolution == 0.0) {
+            logError("hexapodMoveAll: motorRecResolution is 0 for axis %d", axisNo);
+            return asynError;
+        }
+
+        Automation1MotorAxis *pAxis = getAxis(axisNo);
+        if (!pAxis) {
+            logError("hexapodMoveAll: axis %d not found", axisNo);
+            return asynError;
+        }
+        if (pAxis->countsPerUnitParam_ == 0.0) {
+            logError("hexapodMoveAll: countsPerUnitParam_ is 0 for axis %d", axisNo);
+            return asynError;
+        }
+
+        double dir_factor  = (direction != 0) ? -1.0 : 1.0;
+        double a1_axis_res = 1.0 / pAxis->countsPerUnitParam_;
+
+        targets[i] = (userTargets[i] - offset)
+                     / (dir_factor * resolution)
+                     * a1_axis_res;
+
+        // Stash axis-0 (X) scale factors for the coordinated-velocity conversion.
+        if (i == 0) {
+            velocityResolution = resolution;
+            velocityA1AxisRes  = a1_axis_res;
+        }
     }
+
+    // 3.5. Convert coordinated velocity from EPICS user units to Automation1 units.
+    //      Standard motor-driver convention: no offset, no direction sign;
+    //      velocity is non-negative.
+    double velocity = fabs(userVelocity) * velocityA1AxisRes / fabs(velocityResolution);
 
     // 4. Execute the coordinated linear move.
     if (!Automation1_Command_MoveLinear(controller_, commandExecuteTask_,
