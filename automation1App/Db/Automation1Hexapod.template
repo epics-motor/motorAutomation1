@@ -63,3 +63,77 @@ record(mbbo, "$(P)$(H)Mode")
     field(TWVL, "2")
     field(TWST, "Global")
 }
+
+##############################################################
+# Hexapod coordinated move records
+##############################################################
+record(bo,"$(P)$(H)MOVE_ALL") {
+    field(DESC,"Move all motors")
+    field(DTYP,"asynInt32")
+    field(ZNAM,"Off")
+    field(ONAM,"On")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_MOVE_ALL")
+}
+
+record(ao,"$(P)$(H)TX") {
+    field(DESC,"X target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_X")
+    field(PREC,"5")
+    field(VAL, "0.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)TY") {
+    field(DESC,"Y target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_Y")
+    field(PREC,"5")
+    field(VAL, "0.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)TZ") {
+    field(DESC,"Z target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_Z")
+    field(PREC,"5")
+    field(VAL, "12.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)TA") {
+    field(DESC,"A target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_A")
+    field(PREC,"5")
+    field(VAL, "0.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)TB") {
+    field(DESC,"B target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_B")
+    field(PREC,"5")
+    field(VAL, "0.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)TC") {
+    field(DESC,"C target pos")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_TARGET_C")
+    field(PREC,"5")
+    field(VAL, "0.0")
+    field(PINI,"YES")
+}
+
+record(ao,"$(P)$(H)VEL") {
+    field(DESC,"Coord move velocity")
+    field(DTYP,"asynFloat64")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_VELOCITY")
+    field(PREC,"5")
+    field(VAL, "0.5")
+    field(PINI,"YES")
+}

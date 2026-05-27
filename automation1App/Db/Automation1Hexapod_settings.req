@@ -1,1 +1,8 @@
 $(P)$(H)Mode.VAL
+$(P)$(H)TX
+$(P)$(H)TY
+$(P)$(H)TZ
+$(P)$(H)TA
+$(P)$(H)TB
+$(P)$(H)TC
+$(P)$(H)VEL
