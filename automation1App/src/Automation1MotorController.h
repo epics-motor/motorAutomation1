@@ -41,7 +41,16 @@
 #define AUTOMATION1_HXP_StateString         "AUTOMATION1_HXP_STATE"
 #define AUTOMATION1_HXP_ReadModeString      "AUTOMATION1_HXP_READ_MODE"
 #define AUTOMATION1_HXP_WriteModeString     "AUTOMATION1_HXP_WRITE_MODE"
-#define NUM_AUTOMATION1_PARAMS 18
+// Hexapod coordinated-move parameters
+#define AUTOMATION1_HXP_MoveAllString       "AUTOMATION1_HXP_MOVE_ALL"
+#define AUTOMATION1_HXP_TargetXString       "AUTOMATION1_HXP_TARGET_X"
+#define AUTOMATION1_HXP_TargetYString       "AUTOMATION1_HXP_TARGET_Y"
+#define AUTOMATION1_HXP_TargetZString       "AUTOMATION1_HXP_TARGET_Z"
+#define AUTOMATION1_HXP_TargetAString       "AUTOMATION1_HXP_TARGET_A"
+#define AUTOMATION1_HXP_TargetBString       "AUTOMATION1_HXP_TARGET_B"
+#define AUTOMATION1_HXP_TargetCString       "AUTOMATION1_HXP_TARGET_C"
+#define AUTOMATION1_HXP_VelocityString      "AUTOMATION1_HXP_VELOCITY"
+#define NUM_AUTOMATION1_PARAMS 26
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -69,6 +78,9 @@ public:
 
     // Hexapod mode setpoint (called from writeInt32)
     asynStatus setHexapodMode(int hexapodIndex, int mode);
+
+    // Hexapod coordinated move (called from writeInt32 on MoveAll rising edge)
+    asynStatus hexapodMoveAll(int hexapodIndex);
 
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
@@ -101,6 +113,14 @@ protected:
     int AUTOMATION1_HXP_State_;
     int AUTOMATION1_HXP_ReadMode_;
     int AUTOMATION1_HXP_WriteMode_;
+    int AUTOMATION1_HXP_MoveAll_;
+    int AUTOMATION1_HXP_TargetX_;
+    int AUTOMATION1_HXP_TargetY_;
+    int AUTOMATION1_HXP_TargetZ_;
+    int AUTOMATION1_HXP_TargetA_;
+    int AUTOMATION1_HXP_TargetB_;
+    int AUTOMATION1_HXP_TargetC_;
+    int AUTOMATION1_HXP_Velocity_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:

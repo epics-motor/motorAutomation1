@@ -138,6 +138,14 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_HXP_StateString,       asynParamInt32,        &AUTOMATION1_HXP_State_);
     createParam(AUTOMATION1_HXP_ReadModeString,    asynParamInt32,        &AUTOMATION1_HXP_ReadMode_);
     createParam(AUTOMATION1_HXP_WriteModeString,   asynParamInt32,        &AUTOMATION1_HXP_WriteMode_);
+    createParam(AUTOMATION1_HXP_MoveAllString,     asynParamInt32,        &AUTOMATION1_HXP_MoveAll_);
+    createParam(AUTOMATION1_HXP_TargetXString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetX_);
+    createParam(AUTOMATION1_HXP_TargetYString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetY_);
+    createParam(AUTOMATION1_HXP_TargetZString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetZ_);
+    createParam(AUTOMATION1_HXP_TargetAString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetA_);
+    createParam(AUTOMATION1_HXP_TargetBString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetB_);
+    createParam(AUTOMATION1_HXP_TargetCString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetC_);
+    createParam(AUTOMATION1_HXP_VelocityString,    asynParamFloat64,      &AUTOMATION1_HXP_Velocity_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -222,6 +230,22 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
         asynStatus modeStatus = setHexapodMode(addr, value);
         if (modeStatus != asynSuccess) {
             return modeStatus;
+        }
+    }
+    else if (function == AUTOMATION1_HXP_MoveAll_)
+    {
+        if (value == 1) {
+            asynStatus moveStatus = hexapodMoveAll(addr);
+            if (moveStatus != asynSuccess) {
+                return moveStatus;
+            }
+        }
+        else if (value == 0) {
+            // Record is just being reset; nothing to do.
+        }
+        else {
+            logError("writeInt32: MoveAll value=%d invalid (must be 0 or 1)", value);
+            return asynError;
         }
     }
 	 
@@ -1611,6 +1635,58 @@ asynStatus Automation1MotorController::setHexapodMode(int hexapodIndex, int mode
         default:
             logError("setHexapodMode: invalid mode=%d", mode);
             return asynError;
+    }
+
+    return asynSuccess;
+}
+
+asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
+{
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        logError("hexapodMoveAll: invalid hexapodIndex=%d", hexapodIndex);
+        return asynError;
+    }
+
+    // 1. Refresh and verify the hexapod mode is Global (value 2 per the mbbo enum).
+    asynStatus modeStatus = getHexapodMode(hexapodIndex);
+    if (modeStatus != asynSuccess) {
+        // getHexapodMode already logged via writeReadInt
+        return asynError;
+    }
+    int mode = 0;
+    getIntegerParam(hexapodIndex, AUTOMATION1_HXP_ReadMode_, &mode);
+    if (mode != 2) {
+        logError("hexapodMoveAll: hexapod %d not in Global mode (current mode=%d); move refused",
+                 hexapodIndex, mode);
+        return asynError;
+    }
+
+    // 2. Read target positions and velocity from the parameter library.
+    double targets[HEXAPOD_NUM_AXES];
+    double velocity = 0.0;
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetX_, &targets[0]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetY_, &targets[1]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetZ_, &targets[2]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetA_, &targets[3]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetB_, &targets[4]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetC_, &targets[5]);
+    getDoubleParam(hexapodIndex, AUTOMATION1_HXP_Velocity_, &velocity);
+
+    // 3. Build the axis index array from firstHexapodAxisIndex_.
+    int32_t axes[HEXAPOD_NUM_AXES];
+    int first = firstHexapodAxisIndex_[hexapodIndex];
+    for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
+        axes[i] = (int32_t)(first + i);
+    }
+
+    // 4. Execute the coordinated linear move.
+    if (!Automation1_Command_MoveLinear(controller_, commandExecuteTask_,
+                                        axes, HEXAPOD_NUM_AXES,
+                                        targets, HEXAPOD_NUM_AXES,
+                                        velocity))
+    {
+        logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
+        return asynError;
     }
 
     return asynSuccess;
