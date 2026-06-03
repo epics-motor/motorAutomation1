@@ -71,6 +71,7 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     numHexapods_ = 0;
     for (int i = 0; i < MAX_AUTOMATION1_HEXAPODS; i++) {
         firstHexapodAxisIndex_[i] = 0;
+        coordinatedMoveTask_[i]   = 0;
     }
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
@@ -1514,11 +1515,14 @@ asynStatus Automation1MotorController::writeReadInt(const char *expression, int6
     return asynSuccess;
 }
 
-asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int firstHexapodAxis)
+asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex,
+                                                          int firstHexapodAxis,
+                                                          int coordinatedMoveTask)
 {
     asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-              "[Automation1 Driver] initializeHexapod: hexapodIndex=%d, firstHexapodAxis=%d\n",
-              hexapodIndex, firstHexapodAxis);
+              "[Automation1 Driver] initializeHexapod: hexapodIndex=%d, "
+              "firstHexapodAxis=%d, coordinatedMoveTask=%d\n",
+              hexapodIndex, firstHexapodAxis, coordinatedMoveTask);
 
     if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
         logError("initializeHexapod: invalid hexapodIndex=%d (must be 0..%d)",
@@ -1532,7 +1536,48 @@ asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex, int f
         return asynError;
     }
 
+    // Reject invalid task indices.
+    if (coordinatedMoveTask < 1) {
+        logError("initializeHexapod: invalid coordinatedMoveTask=%d (must be >= 1)",
+                 coordinatedMoveTask);
+        return asynError;
+    }
+
+    // Reject collision with commandExecuteTask_ -- sharing it would block the
+    // poll thread during a coordinated move (the very problem this argument
+    // exists to solve).
+    if (coordinatedMoveTask == commandExecuteTask_) {
+        logError("initializeHexapod: coordinatedMoveTask=%d must differ from "
+                 "commandExecuteTask=%d (otherwise polling is blocked during moves)",
+                 coordinatedMoveTask, commandExecuteTask_);
+        return asynError;
+    }
+
+    // Warn (but allow) collision with profileMoveTask_ -- valid configurations
+    // may share the task, but a simultaneous profile move and coordinated
+    // hexapod move on the same task would serialize.
+    if (coordinatedMoveTask == profileMoveTask_) {
+        logError("initializeHexapod: warning: coordinatedMoveTask=%d collides with "
+                 "profileMoveTask=%d; simultaneous profile moves and coordinated "
+                 "hexapod moves on the same task will serialize",
+                 coordinatedMoveTask, profileMoveTask_);
+    }
+
+    // Warn (but allow) collision with another hexapod's coordinatedMoveTask_ --
+    // sharing a task is supported when only one hexapod moves at a time, but
+    // simultaneous coordinated moves on shared-task hexapods will serialize.
+    for (int h = 0; h < numHexapods_; h++) {
+        if (coordinatedMoveTask_[h] == coordinatedMoveTask) {
+            logError("initializeHexapod: warning: coordinatedMoveTask=%d already in use "
+                     "by hexapod %d; simultaneous coordinated moves on these hexapods "
+                     "will serialize",
+                     coordinatedMoveTask, h);
+            break;
+        }
+    }
+
     firstHexapodAxisIndex_[hexapodIndex] = firstHexapodAxis;
+    coordinatedMoveTask_[hexapodIndex]   = coordinatedMoveTask;
 
     for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
         int axisNo = firstHexapodAxis + i;
@@ -1735,8 +1780,9 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     //      velocity is non-negative.
     double velocity = fabs(userVelocity) * velocityA1AxisRes / fabs(velocityResolution);
 
-    // 4. Execute the coordinated linear move.
-    if (!Automation1_Command_MoveLinear(controller_, commandExecuteTask_,
+    // 4. Execute the coordinated linear move on the per-hexapod task.
+    int32_t moveTask = coordinatedMoveTask_[hexapodIndex];
+    if (!Automation1_Command_MoveLinear(controller_, moveTask,
                                         axes, HEXAPOD_NUM_AXES,
                                         targets, HEXAPOD_NUM_AXES,
                                         velocity))
@@ -1748,7 +1794,8 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     return asynSuccess;
 }
 
-asynStatus Automation1CreateHexapod(const char *portName, int hexapodIndex, int firstHexapodAxis)
+asynStatus Automation1CreateHexapod(const char *portName, int hexapodIndex,
+                                    int firstHexapodAxis, int coordinatedMoveTask)
 {
     Automation1MotorController *pC;
     static const char *functionName = "Automation1CreateHexapod";
@@ -1760,7 +1807,7 @@ asynStatus Automation1CreateHexapod(const char *portName, int hexapodIndex, int 
                functionName, portName);
         return asynError;
     }
-    pC->initializeHexapod(hexapodIndex, firstHexapodAxis);
+    pC->initializeHexapod(hexapodIndex, firstHexapodAxis, coordinatedMoveTask);
     return asynSuccess;
 }
 
@@ -1798,14 +1845,18 @@ static void configAutomation1ProfileCallFunc(const iocshArgBuf* args)
 static const iocshArg Automation1CreateHexapodArg0 = {"Port name", iocshArgString};
 static const iocshArg Automation1CreateHexapodArg1 = {"Hexapod index", iocshArgInt};
 static const iocshArg Automation1CreateHexapodArg2 = {"First hexapod axis", iocshArgInt};
+static const iocshArg Automation1CreateHexapodArg3 = {"Coordinated move task", iocshArgInt};
 
-static const iocshArg* const Automation1CreateHexapodArgs[3] = {&Automation1CreateHexapodArg0, &Automation1CreateHexapodArg1, &Automation1CreateHexapodArg2};
+static const iocshArg* const Automation1CreateHexapodArgs[4] = {&Automation1CreateHexapodArg0,
+                                                                &Automation1CreateHexapodArg1,
+                                                                &Automation1CreateHexapodArg2,
+                                                                &Automation1CreateHexapodArg3};
 
-static const iocshFuncDef configAutomation1Hexapod = {"Automation1CreateHexapod", 3, Automation1CreateHexapodArgs};
+static const iocshFuncDef configAutomation1Hexapod = {"Automation1CreateHexapod", 4, Automation1CreateHexapodArgs};
 
 static void configAutomation1HexapodCallFunc(const iocshArgBuf* args)
 {
-    Automation1CreateHexapod(args[0].sval, args[1].ival, args[2].ival);
+    Automation1CreateHexapod(args[0].sval, args[1].ival, args[2].ival, args[3].ival);
 }
 
 // Code for iocsh registration

@@ -70,7 +70,7 @@ public:
     void createAsynParams(void);
 
     // Hexapod initialization
-    asynStatus initializeHexapod(int hexapodIndex, int firstHexapodAxis);
+    asynStatus initializeHexapod(int hexapodIndex, int firstHexapodAxis, int coordinatedMoveTask);
 
     // Hexapod state/mode readback (called from poll)
     asynStatus getHexapodState(int hexapodIndex);
@@ -156,6 +156,11 @@ private:
     // Hexapod tracking state
     int numHexapods_;
     int firstHexapodAxisIndex_[MAX_AUTOMATION1_HEXAPODS];
+    // AeroScript task index used by Automation1_Command_MoveLinear for each hexapod.
+    // Set by initializeHexapod from the coordinatedMoveTask argument of
+    // Automation1CreateHexapod. Must differ from commandExecuteTask_ so that
+    // polling (state/mode queries) is not blocked while a coordinated move is in flight.
+    int32_t coordinatedMoveTask_[MAX_AUTOMATION1_HEXAPODS];
 
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
