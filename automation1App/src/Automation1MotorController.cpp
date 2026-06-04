@@ -1700,8 +1700,8 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     }
     int mode = 0;
     getIntegerParam(hexapodIndex, AUTOMATION1_HXP_ReadMode_, &mode);
-    if (mode != 2) {
-        logError("hexapodMoveAll: hexapod %d not in Global mode (current mode=%d); move refused",
+    if (mode != 1 && mode != 2) {
+        logError("hexapodMoveAll: hexapod %d not in Local or Global mode (current mode=%d); move refused",
                  hexapodIndex, mode);
         return asynError;
     }
