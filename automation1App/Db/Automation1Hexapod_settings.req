@@ -1,4 +1,5 @@
 $(P)$(H)Mode.VAL
+$(P)$(H)MOVE_ALL_MODE.VAL
 $(P)$(H)TX.VAL
 $(P)$(H)TY.VAL
 $(P)$(H)TZ.VAL

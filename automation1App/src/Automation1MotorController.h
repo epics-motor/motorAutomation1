@@ -50,7 +50,8 @@
 #define AUTOMATION1_HXP_TargetBString       "AUTOMATION1_HXP_TARGET_B"
 #define AUTOMATION1_HXP_TargetCString       "AUTOMATION1_HXP_TARGET_C"
 #define AUTOMATION1_HXP_VelocityString      "AUTOMATION1_HXP_VELOCITY"
-#define NUM_AUTOMATION1_PARAMS 26
+#define AUTOMATION1_HXP_MoveAllModeString   "AUTOMATION1_HXP_MOVE_ALL_MODE"
+#define NUM_AUTOMATION1_PARAMS 27
 
 
 class epicsShareClass Automation1MotorController : public asynMotorController
@@ -121,6 +122,7 @@ protected:
     int AUTOMATION1_HXP_TargetB_;
     int AUTOMATION1_HXP_TargetC_;
     int AUTOMATION1_HXP_Velocity_;
+    int AUTOMATION1_HXP_MoveAllMode_;
     int parameters[NUM_AUTOMATION1_PARAMS];
 
 private:

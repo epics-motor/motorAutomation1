@@ -75,6 +75,16 @@ record(bo,"$(P)$(H)MOVE_ALL") {
     field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_MOVE_ALL")
 }
 
+record(bo,"$(P)$(H)MOVE_ALL_MODE") {
+    field(DESC,"MoveAll target mode")
+    field(DTYP,"asynInt32")
+    field(ZNAM,"Incremental")
+    field(ONAM,"Absolute")
+    field(VAL, "1")
+    field(PINI,"YES")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_MOVE_ALL_MODE")
+}
+
 record(ao,"$(P)$(H)TX") {
     field(DESC,"X target pos")
     field(DTYP,"asynFloat64")

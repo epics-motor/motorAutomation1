@@ -147,6 +147,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_HXP_TargetBString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetB_);
     createParam(AUTOMATION1_HXP_TargetCString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetC_);
     createParam(AUTOMATION1_HXP_VelocityString,    asynParamFloat64,      &AUTOMATION1_HXP_Velocity_);
+    createParam(AUTOMATION1_HXP_MoveAllModeString, asynParamInt32,        &AUTOMATION1_HXP_MoveAllMode_);
 }
 
 /* * Creates a new Automation1 controller object.
@@ -1717,13 +1718,39 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     getDoubleParam(hexapodIndex, AUTOMATION1_HXP_TargetC_, &userTargets[5]);
     getDoubleParam(hexapodIndex, AUTOMATION1_HXP_Velocity_, &userVelocity);
 
-    // 3. Build the axis index array from firstHexapodAxisIndex_, and convert targets
-    //    from EPICS user units to Automation1 units per the formula:
+    // 3. Read and validate the MOVE_ALL_MODE parameter (0 = Incremental,
+    //    1 = Absolute).  This is orthogonal to the hexapod Local/Global mode
+    //    and determines both the task target mode written to the controller
+    //    and how userTargets[] are interpreted below (position vs. delta).
+    int moveAllMode = 0;
+    getIntegerParam(hexapodIndex, AUTOMATION1_HXP_MoveAllMode_, &moveAllMode);
+    Automation1TargetMode targetMode;
+    if (moveAllMode == 0) {
+        targetMode = Automation1TargetMode_Incremental;
+    }
+    else if (moveAllMode == 1) {
+        targetMode = Automation1TargetMode_Absolute;
+    }
+    else {
+        logError("hexapodMoveAll: invalid MOVE_ALL_MODE=%d (must be 0=Incremental or 1=Absolute)",
+                 moveAllMode);
+        return asynError;
+    }
+
+    // 4. Build the axis index array from firstHexapodAxisIndex_, and convert targets
+    //    from EPICS user units to Automation1 units per the formulas:
     //      dir_factor      = motorRecDirection ? -1 : 1
     //      a1_axis_res     = 1.0 / countsPerUnitParam_
-    //      a1_target       = (user_target - motorRecOffset)
-    //                        / (dir_factor * motorRecResolution)
-    //                        * a1_axis_res
+    //      Absolute:    a1_target = (user_target - motorRecOffset)
+    //                               / (dir_factor * motorRecResolution)
+    //                               * a1_axis_res
+    //      Incremental: a1_target = user_target
+    //                               / (dir_factor * motorRecResolution)
+    //                               * a1_axis_res
+    //    In Incremental mode, motorRecOffset is omitted because userTargets[]
+    //    are displacements, not positions.  The direction sign and resolution
+    //    scaling still apply so that a +delta at the record commands a
+    //    physically forward move even on reversed axes.
     int32_t axes[HEXAPOD_NUM_AXES];
     double  targets[HEXAPOD_NUM_AXES];           // Automation1 controller units
     double  velocityResolution = 0.0;            // motorRecResolution_ of axis 0 (X)
@@ -1764,9 +1791,11 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
         double dir_factor  = (direction != 0) ? -1.0 : 1.0;
         double a1_axis_res = 1.0 / pAxis->countsPerUnitParam_;
 
-        targets[i] = (userTargets[i] - offset)
-                     / (dir_factor * resolution)
-                     * a1_axis_res;
+        double numerator = (targetMode == Automation1TargetMode_Absolute)
+                           ? (userTargets[i] - offset)
+                           : userTargets[i];
+
+        targets[i] = numerator / (dir_factor * resolution) * a1_axis_res;
 
         // Stash axis-0 (X) scale factors for the coordinated-velocity conversion.
         if (i == 0) {
@@ -1775,13 +1804,19 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
         }
     }
 
-    // 3.5. Convert coordinated velocity from EPICS user units to Automation1 units.
-    //      Standard motor-driver convention: no offset, no direction sign;
-    //      velocity is non-negative.
+    // 5. Convert coordinated velocity from EPICS user units to Automation1 units.
+    //    Standard motor-driver convention: no offset, no direction sign;
+    //    velocity is non-negative.  Applies in both Absolute and Incremental.
     double velocity = fabs(userVelocity) * velocityA1AxisRes / fabs(velocityResolution);
 
-    // 4. Execute the coordinated linear move on the per-hexapod task.
+    // 6. Set the target mode on the coordinated-move task.
     int32_t moveTask = coordinatedMoveTask_[hexapodIndex];
+    if (!Automation1_Command_SetupTaskTargetMode(controller_, moveTask, targetMode)) {
+        logApiError("hexapodMoveAll: Automation1_Command_SetupTaskTargetMode failed");
+        return asynError;
+    }
+
+    // 7. Execute the coordinated linear move on the per-hexapod task.
     if (!Automation1_Command_MoveLinear(controller_, moveTask,
                                         axes, HEXAPOD_NUM_AXES,
                                         targets, HEXAPOD_NUM_AXES,
