@@ -147,3 +147,73 @@ record(ao,"$(P)$(H)VEL") {
     field(VAL, "0.5")
     field(PINI,"YES")
 }
+
+### Records for automatically updating move all targets when the target mode changes
+
+record(bo,"$(P)$(H)AUTO_TARGET_SYNC") {
+    field(DESC,"MoveAll target sync")
+    field(ZNAM,"Disabled")
+    field(ONAM,"Enabled")
+    field(VAL, "1")
+    field(PINI,"YES")
+}
+
+record(calcout, "$(P)$(H)INC_TARGET_CALC") {
+    field(DESC, "Inc target sync calc")
+    field(INPA, "$(P)$(H)MOVE_ALL_MODE CP NMS")
+    field(CALC, "A=0")
+    field(OOPT, "Transition To Non-zero")
+    field(DOPT, "Use CALC")
+    field(OUT,  "$(P)$(H)INC_TARGET_SYNC.PROC PP NMS")
+    # The following two lines are responsible for disabling the automatic syncing
+    field(SDIS, "$(P)$(H)AUTO_TARGET_SYNC NPP NMS")
+    field(DISV, "0")
+}
+
+# In incremental mode all the targets, which are displacements, are set to zero
+# so that a coordinated move without manually-updated targets results in no motion.
+record(dfanout, "$(P)$(H)INC_TARGET_SYNC") {
+    field(DESC, "Inc target sync")
+    field(OMSL, "supervisory")
+    field(VAL,  "0.0")
+    field(SELM, "All")
+    field(OUTA, "$(P)$(H)TX.VAL PP NMS")
+    field(OUTB, "$(P)$(H)TY.VAL PP NMS")
+    field(OUTC, "$(P)$(H)TZ.VAL PP NMS")
+    field(OUTD, "$(P)$(H)TA.VAL PP NMS")
+    field(OUTE, "$(P)$(H)TB.VAL PP NMS")
+    field(OUTF, "$(P)$(H)TC.VAL PP NMS")
+    field(PREC, "4")
+}
+
+record(calcout, "$(P)$(H)ABS_TARGET_CALC") {
+    field(DESC, "Abs target sync calc")
+    field(INPA, "$(P)$(H)MOVE_ALL_MODE CP NMS")
+    field(CALC, "A=1")
+    field(OOPT, "Transition To Non-zero")
+    field(DOPT, "Use CALC")
+    field(OUT,  "$(P)$(H)ABS_TARGET_SYNC.PROC PP NMS")
+    # The following two lines are responsible for disabling the automatic syncing
+    field(SDIS, "$(P)$(H)AUTO_TARGET_SYNC NPP NMS")
+    field(DISV, "0")
+}
+
+# In absolute mode all the targets are set to the motor record's user target position
+# so that a coordinated move without manually-updated targets results in no motion.
+record(seq, "$(P)$(H)ABS_TARGET_SYNC") {
+    field(DESC, "Abs target sync")
+    field(SELM, "All")
+    field(DOL0, "$(P)$(MX).VAL NPP NMS")
+    field(DOL1, "$(P)$(MY).VAL NPP NMS")
+    field(DOL2, "$(P)$(MZ).VAL NPP NMS")
+    field(DOL3, "$(P)$(MA).VAL NPP NMS")
+    field(DOL4, "$(P)$(MB).VAL NPP NMS")
+    field(DOL5, "$(P)$(MC).VAL NPP NMS")
+    field(LNK0, "$(P)$(H)TX.VAL PP NMS")
+    field(LNK1, "$(P)$(H)TY.VAL PP NMS")
+    field(LNK2, "$(P)$(H)TZ.VAL PP NMS")
+    field(LNK3, "$(P)$(H)TA.VAL PP NMS")
+    field(LNK4, "$(P)$(H)TB.VAL PP NMS")
+    field(LNK5, "$(P)$(H)TC.VAL PP NMS")
+    field(PREC, "4")
+}
