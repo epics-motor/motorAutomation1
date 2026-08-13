@@ -5,10 +5,10 @@ file {
 }
 display {
 	object {
-		x=1232
-		y=101
+		x=417
+		y=87
 		width=720
-		height=165
+		height=185
 	}
 	clr=14
 	bclr=3
@@ -150,21 +150,6 @@ rectangle {
 		vis="if not zero"
 		chan="$(P)$(M1)_able.VAL"
 	}
-}
-"message button" {
-	object {
-		x=502
-		y=106
-		width=125
-		height=40
-	}
-	control {
-		chan="$(P)$(M1).STOP"
-		clr=31
-		bclr=20
-	}
-	label="STOP"
-	press_msg="1"
 }
 rectangle {
 	object {
@@ -1487,22 +1472,6 @@ text {
 	textix="More"
 	align="horiz. centered"
 }
-"message button" {
-	object {
-		x=365
-		y=105
-		width=125
-		height=40
-	}
-	control {
-		chan="$(P)$(H)MOVE_ALL"
-		clr=31
-		bclr=18
-	}
-	label="Go"
-	press_msg="1"
-	release_msg="0"
-}
 "text entry" {
 	object {
 		x=9
@@ -1566,7 +1535,7 @@ text {
 text {
 	object {
 		x=9
-		y=115
+		y=114
 		width=97
 		height=25
 	}
@@ -1575,4 +1544,72 @@ text {
 	}
 	textix="Velocity"
 	align="horiz. centered"
+}
+menu {
+	object {
+		x=129
+		y=150
+		width=98
+		height=24
+	}
+	control {
+		chan="$(P)$(H)MOVE_ALL_MODE"
+		clr=14
+		bclr=51
+	}
+}
+text {
+	object {
+		x=9
+		y=150
+		width=97
+		height=25
+	}
+	"basic attribute" {
+		clr=14
+	}
+	textix="Target Mode"
+	align="horiz. centered"
+}
+composite {
+	object {
+		x=325
+		y=125
+		width=262
+		height=41
+	}
+	"composite name"=""
+	children {
+		"message button" {
+			object {
+				x=462
+				y=126
+				width=125
+				height=40
+			}
+			control {
+				chan="$(P)$(M1).STOP"
+				clr=31
+				bclr=20
+			}
+			label="STOP"
+			press_msg="1"
+		}
+		"message button" {
+			object {
+				x=325
+				y=125
+				width=125
+				height=40
+			}
+			control {
+				chan="$(P)$(H)MOVE_ALL"
+				clr=31
+				bclr=18
+			}
+			label="Go"
+			press_msg="1"
+			release_msg="0"
+		}
+	}
 }
