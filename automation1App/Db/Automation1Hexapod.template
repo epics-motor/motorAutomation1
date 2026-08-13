@@ -72,6 +72,7 @@ record(bo,"$(P)$(H)MOVE_ALL") {
     field(DTYP,"asynInt32")
     field(ZNAM,"Off")
     field(ONAM,"On")
+    field(VAL, "0")
     field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_MOVE_ALL")
 }
 
@@ -183,7 +184,10 @@ record(dfanout, "$(P)$(H)INC_TARGET_SYNC") {
     field(OUTD, "$(P)$(H)TA.VAL PP NMS")
     field(OUTE, "$(P)$(H)TB.VAL PP NMS")
     field(OUTF, "$(P)$(H)TC.VAL PP NMS")
-    field(PREC, "4")
+    field(PREC, "5")
+    # Prevent syncing when the target move mode is wrong
+    field(SDIS, "$(P)$(H)MOVE_ALL_MODE NPP NMS")
+    field(DISV, "1")
 }
 
 record(calcout, "$(P)$(H)ABS_TARGET_CALC") {
@@ -203,17 +207,20 @@ record(calcout, "$(P)$(H)ABS_TARGET_CALC") {
 record(seq, "$(P)$(H)ABS_TARGET_SYNC") {
     field(DESC, "Abs target sync")
     field(SELM, "All")
-    field(DOL0, "$(P)$(MX).VAL NPP NMS")
-    field(DOL1, "$(P)$(MY).VAL NPP NMS")
-    field(DOL2, "$(P)$(MZ).VAL NPP NMS")
-    field(DOL3, "$(P)$(MA).VAL NPP NMS")
-    field(DOL4, "$(P)$(MB).VAL NPP NMS")
-    field(DOL5, "$(P)$(MC).VAL NPP NMS")
+    field(DOL0, "$(P)$(M1).VAL NPP NMS")
+    field(DOL1, "$(P)$(M2).VAL NPP NMS")
+    field(DOL2, "$(P)$(M3).VAL NPP NMS")
+    field(DOL3, "$(P)$(M4).VAL NPP NMS")
+    field(DOL4, "$(P)$(M5).VAL NPP NMS")
+    field(DOL5, "$(P)$(M6).VAL NPP NMS")
     field(LNK0, "$(P)$(H)TX.VAL PP NMS")
     field(LNK1, "$(P)$(H)TY.VAL PP NMS")
     field(LNK2, "$(P)$(H)TZ.VAL PP NMS")
     field(LNK3, "$(P)$(H)TA.VAL PP NMS")
     field(LNK4, "$(P)$(H)TB.VAL PP NMS")
     field(LNK5, "$(P)$(H)TC.VAL PP NMS")
-    field(PREC, "4")
+    field(PREC, "5")
+    # Prevent syncing when the target move mode is wrong
+    field(SDIS, "$(P)$(H)MOVE_ALL_MODE NPP NMS")
+    field(DISV, "0")
 }

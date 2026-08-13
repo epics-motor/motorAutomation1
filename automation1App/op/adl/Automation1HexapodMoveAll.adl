@@ -5,8 +5,8 @@ file {
 }
 display {
 	object {
-		x=417
-		y=87
+		x=139
+		y=135
 		width=720
 		height=185
 	}
@@ -1571,45 +1571,65 @@ text {
 	textix="Target Mode"
 	align="horiz. centered"
 }
+"message button" {
+	object {
+		x=512
+		y=126
+		width=125
+		height=40
+	}
+	control {
+		chan="$(P)$(M1).STOP"
+		clr=31
+		bclr=20
+	}
+	label="STOP"
+	press_msg="1"
+}
+"message button" {
+	object {
+		x=375
+		y=125
+		width=125
+		height=40
+	}
+	control {
+		chan="$(P)$(H)MOVE_ALL"
+		clr=31
+		bclr=18
+	}
+	label="Go"
+	press_msg="1"
+	release_msg="0"
+}
 composite {
 	object {
-		x=325
-		y=125
-		width=262
-		height=41
+		x=240
+		y=150
+		width=78
+		height=25
 	}
 	"composite name"=""
 	children {
 		"message button" {
 			object {
-				x=462
-				y=126
-				width=125
-				height=40
+				x=240
+				y=150
+				width=78
+				height=25
 			}
 			control {
-				chan="$(P)$(M1).STOP"
-				clr=31
-				bclr=20
+				chan="$(P)$(H)ABS_TARGET_SYNC.PROC"
+				clr=13
+				bclr=51
 			}
-			label="STOP"
+			label="SYNC"
 			press_msg="1"
 		}
-		"message button" {
-			object {
-				x=325
-				y=125
-				width=125
-				height=40
-			}
-			control {
-				chan="$(P)$(H)MOVE_ALL"
-				clr=31
-				bclr=18
-			}
-			label="Go"
-			press_msg="1"
-			release_msg="0"
-		}
+	}
+	"dynamic attribute" {
+		vis="if not zero"
+		calc="A=1"
+		chan="$(P)$(H)MOVE_ALL_MODE"
 	}
 }
