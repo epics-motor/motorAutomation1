@@ -13,6 +13,7 @@
 
 #include <iocsh.h>
 #include <epicsThread.h>
+#include <epicsTime.h>
 
 #include <asynOctetSyncIO.h>
 
@@ -1555,9 +1556,25 @@ asynStatus Automation1MotorController::writeReadInt(const char *expression, int6
     std::vector<char> aeroScriptText(len);
     snprintf(aeroScriptText.data(), len, "%s%s", prefix, expression);
 
+    // Diagnostic instrumentation: measure how long
+    // Automation1_Command_ExecuteAndReturnAeroScriptInteger blocks so we can
+    // determine whether AeroScript execution on commandExecuteTask_ stalls
+    // while a coordinated move is running on a different task.  Temporary --
+    // remove once the root cause of the coordinated-move poll stall is
+    // identified.
     int64_t result = 0;
-    if (!Automation1_Command_ExecuteAndReturnAeroScriptInteger(
-            controller_, commandExecuteTask_, aeroScriptText.data(), &result))
+    epicsTimeStamp t0, t1;
+    epicsTimeGetCurrent(&t0);
+    bool execOk = Automation1_Command_ExecuteAndReturnAeroScriptInteger(
+            controller_, commandExecuteTask_, aeroScriptText.data(), &result);
+    epicsTimeGetCurrent(&t1);
+    double dt = epicsTimeDiffInSeconds(&t1, &t0);
+    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+              "[Automation1 Driver] %s: task %d: expression \"%s\" returned %s after %.3f s\n",
+              functionName, commandExecuteTask_, aeroScriptText.data(),
+              execOk ? "success" : "FAILURE",
+              dt);
+    if (!execOk)
     {
         logApiError("Could not execute AeroScript integer command");
         asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
@@ -1871,13 +1888,39 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     }
 
     // 7. Execute the coordinated linear move on the per-hexapod task.
-    if (!Automation1_Command_MoveLinear(controller_, moveTask,
-                                        axes, HEXAPOD_NUM_AXES,
-                                        targets, HEXAPOD_NUM_AXES,
-                                        velocity))
+    //    Diagnostic instrumentation: measure how long
+    //    Automation1_Command_MoveLinear blocks so we can determine whether
+    //    the call itself holds the port lock for the duration of the physical
+    //    motion (in which case the poll thread is starved) or returns
+    //    quickly (implicating a different blocking call elsewhere).  Aerotech
+    //    Studio shows the coordinated-move task as Idle during the physical
+    //    motion, which suggests MoveLinear may return quickly; these prints
+    //    will confirm one way or the other.  Temporary -- remove once the
+    //    root cause is identified.
     {
-        logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
-        return asynError;
+        epicsTimeStamp t0, t1;
+        epicsTimeGetCurrent(&t0);
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "[Automation1 Driver] hexapodMoveAll: hexapod %d, task %d: "
+                  "calling Automation1_Command_MoveLinear\n",
+                  hexapodIndex, moveTask);
+        bool moveLinearOk = Automation1_Command_MoveLinear(controller_, moveTask,
+                                                           axes, HEXAPOD_NUM_AXES,
+                                                           targets, HEXAPOD_NUM_AXES,
+                                                           velocity);
+        epicsTimeGetCurrent(&t1);
+        double dt = epicsTimeDiffInSeconds(&t1, &t0);
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "[Automation1 Driver] hexapodMoveAll: hexapod %d, task %d: "
+                  "Automation1_Command_MoveLinear returned %s after %.3f s\n",
+                  hexapodIndex, moveTask,
+                  moveLinearOk ? "success" : "FAILURE",
+                  dt);
+        if (!moveLinearOk)
+        {
+            logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
+            return asynError;
+        }
     }
 
     // 8. Mark this hexapod as having an in-flight coordinated move so that
