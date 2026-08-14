@@ -70,8 +70,9 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     globalVarOffset_ = 255;
     numHexapods_ = 0;
     for (int i = 0; i < MAX_AUTOMATION1_HEXAPODS; i++) {
-        firstHexapodAxisIndex_[i] = 0;
-        coordinatedMoveTask_[i]   = 0;
+        firstHexapodAxisIndex_[i]   = 0;
+        coordinatedMoveTask_[i]     = 0;
+        coordinatedMoveInFlight_[i] = false;
     }
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
@@ -1408,17 +1409,53 @@ done:
 asynStatus Automation1MotorController::poll()
 {
     Automation1DataCollectionStatus dataCollectionStatus;
-    Automation1TaskStatus *taskStatusArray = new Automation1TaskStatus[profileMoveTask_ + 1];
+    // Size taskStatusArray to cover both profileMoveTask_ and any
+    // coordinatedMoveTask_[h] so we can index either.  Unregistered hexapods
+    // have coordinatedMoveTask_[h] == 0 (from the constructor), which is
+    // already covered by profileMoveTask_ + 1 in typical configurations.
+    int maxTaskIndex = profileMoveTask_;
+    for (int h = 0; h < numHexapods_; h++) {
+        if (coordinatedMoveTask_[h] > maxTaskIndex) {
+            maxTaskIndex = coordinatedMoveTask_[h];
+        }
+    }
+    Automation1TaskStatus *taskStatusArray = new Automation1TaskStatus[maxTaskIndex + 1];
     Automation1TaskStatus* taskStatus;
     int executeState = PROFILE_EXECUTE_DONE;
     int numPoints;
     int currentPoint;
     bool pollOk = true;
 
-    // Poll registered hexapods (runs every poll, regardless of profile-move state)
+    // Poll registered hexapods (runs every poll, regardless of profile-move state).
+    //
+    // If a coordinated move is in flight on hexapod h, the AeroScript
+    // functions GetHexapodState / GetHexapodMode (dispatched via writeReadInt
+    // on commandExecuteTask_) block on the controller for the duration of the
+    // move, which stalls the entire outer poll and every per-axis poll.  To
+    // avoid this we skip the state/mode queries while a coordinated move is
+    // in flight -- STATE and MODE_RBV cannot legitimately change during
+    // motion anyway -- and instead poll the coordinated-move task via
+    // Automation1_Task_GetStatus (non-blocking) to detect when the move has
+    // completed.  On completion we clear coordinatedMoveInFlight_[h] so that
+    // the next poll iteration resumes normal state/mode readback.
     for (int h = 0; h < numHexapods_; h++) {
-        getHexapodState(h);
-        getHexapodMode(h);
+        if (coordinatedMoveInFlight_[h]) {
+            if (!Automation1_Task_GetStatus(controller_, taskStatusArray,
+                                            maxTaskIndex + 1))
+            {
+                logApiError("Failed to get task status for coordinated-move detection");
+                pollOk = false;
+            }
+            else if (taskStatusArray[coordinatedMoveTask_[h]].TaskState
+                     != Automation1TaskState_ProgramRunning)
+            {
+                coordinatedMoveInFlight_[h] = false;
+            }
+        }
+        else {
+            getHexapodState(h);
+            getHexapodMode(h);
+        }
         callParamCallbacks(h);
     }
 
@@ -1842,6 +1879,16 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
         logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
         return asynError;
     }
+
+    // 8. Mark this hexapod as having an in-flight coordinated move so that
+    //    Automation1MotorController::poll() will skip the blocking
+    //    GetHexapodState/GetHexapodMode AeroScript queries (which stall on the
+    //    controller for the duration of the coordinated move, blocking all
+    //    axis polling) and so that per-axis poll() will report moving=1 and
+    //    stream programPositionFeedback for the hexapod axes.  Wake the
+    //    poller so it switches to movingPollPeriod cadence immediately.
+    coordinatedMoveInFlight_[hexapodIndex] = true;
+    wakeupPoller();
 
     return asynSuccess;
 }

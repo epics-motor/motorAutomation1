@@ -169,6 +169,17 @@ private:
     // polling (state/mode queries) is not blocked while a coordinated move is in flight.
     int32_t coordinatedMoveTask_[MAX_AUTOMATION1_HEXAPODS];
 
+    // True while a coordinated move dispatched by hexapodMoveAll is executing on
+    // coordinatedMoveTask_[h].  Set by hexapodMoveAll on successful MoveLinear
+    // dispatch; cleared by Automation1MotorController::poll() when
+    // Automation1_Task_GetStatus reports TaskState != ProgramRunning.  Used to
+    // (a) suppress GetHexapodState/GetHexapodMode AeroScript queries in the
+    // controller poll (which block on the controller while a coordinated move
+    // is in flight, stalling all axis polling) and (b) let per-axis poll report
+    // moving=1 and stream programPositionFeedback for hexapod axes during the
+    // move.
+    bool coordinatedMoveInFlight_[MAX_AUTOMATION1_HEXAPODS];
+
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
 
