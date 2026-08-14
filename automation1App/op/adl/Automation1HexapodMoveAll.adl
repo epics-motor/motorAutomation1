@@ -1579,7 +1579,7 @@ text {
 		height=40
 	}
 	control {
-		chan="$(P)$(M1).STOP"
+		chan="$(P)$(H)STOP_ALL"
 		clr=31
 		bclr=20
 	}
