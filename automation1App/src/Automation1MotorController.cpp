@@ -13,7 +13,7 @@
 
 #include <iocsh.h>
 #include <epicsThread.h>
-#include <epicsTime.h>
+#include <epicsEvent.h>
 
 #include <asynOctetSyncIO.h>
 
@@ -27,6 +27,26 @@
 #include "Include/Automation1.h"
 
 static const char *driverName = "Automation1MotorController";
+
+// Trampoline argument for the per-hexapod worker thread.  Heap-allocated in
+// initializeHexapod, freed by the trampoline before entering the worker loop.
+namespace {
+struct HexapodWorkerArgs {
+    Automation1MotorController *pC;
+    int                         hexapodIndex;
+};
+}
+
+// C-style trampoline used by epicsThreadCreate.  Casts the void* argument
+// back to HexapodWorkerArgs, frees it, and enters the worker loop.
+static void automation1HexapodMoveWorkerC(void *arg)
+{
+    HexapodWorkerArgs *a = static_cast<HexapodWorkerArgs *>(arg);
+    Automation1MotorController *pC = a->pC;
+    int hexapodIndex = a->hexapodIndex;
+    delete a;
+    pC->hexapodMoveWorker(hexapodIndex);
+}
 
 /** Creates a new Automation1MotorController object.
   *
@@ -74,6 +94,20 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
         firstHexapodAxisIndex_[i]   = 0;
         coordinatedMoveTask_[i]     = 0;
         coordinatedMoveInFlight_[i] = false;
+
+        // Per-hexapod worker plumbing.  The event is created empty (worker
+        // will block on it until hexapodMoveAll signals).  The thread id is
+        // populated by initializeHexapod.
+        moveEventId_[i]        = epicsEventCreate(epicsEventEmpty);
+        workerThreadId_[i]     = 0;
+        movePending_[i]        = false;
+        pendingMoveTask_[i]    = 0;
+        pendingVelocity_[i]    = 0.0;
+        pendingTargetMode_[i]  = Automation1TargetMode_Absolute;
+        for (int j = 0; j < HEXAPOD_NUM_AXES; j++) {
+            pendingAxes_[i][j]    = 0;
+            pendingTargets_[i][j] = 0.0;
+        }
     }
     pAxes_ = (Automation1MotorAxis**)(asynMotorController::pAxes_);
 
@@ -112,9 +146,22 @@ Automation1MotorController::Automation1MotorController(const char* portName, con
     startPoller(movingPollPeriod, idlePollPeriod, 2);
 }
 
-// Destructor.  Releases Automation1 handles.
+// Destructor.  Signals per-hexapod worker threads to exit (they check
+// shuttingDown_ after epicsEventWait returns) and then releases Automation1
+// handles.  We do not join the worker threads: process exit tears them down,
+// and epicsThreadMustJoin is not universally available.  A brief sleep gives
+// workers a chance to notice the shutdown flag before we tear down the
+// Automation1 controller handle they may be using.
 Automation1MotorController::~Automation1MotorController()
 {
+    shuttingDown_ = 1;
+    for (int h = 0; h < MAX_AUTOMATION1_HEXAPODS; h++) {
+        if (moveEventId_[h]) {
+            epicsEventSignal(moveEventId_[h]);
+        }
+    }
+    epicsThreadSleep(0.1);
+
     Automation1_DataCollectionConfig_Destroy(dataCollectionConfig_);
     Automation1_Disconnect(controller_);
 }
@@ -1556,25 +1603,9 @@ asynStatus Automation1MotorController::writeReadInt(const char *expression, int6
     std::vector<char> aeroScriptText(len);
     snprintf(aeroScriptText.data(), len, "%s%s", prefix, expression);
 
-    // Diagnostic instrumentation: measure how long
-    // Automation1_Command_ExecuteAndReturnAeroScriptInteger blocks so we can
-    // determine whether AeroScript execution on commandExecuteTask_ stalls
-    // while a coordinated move is running on a different task.  Temporary --
-    // remove once the root cause of the coordinated-move poll stall is
-    // identified.
     int64_t result = 0;
-    epicsTimeStamp t0, t1;
-    epicsTimeGetCurrent(&t0);
-    bool execOk = Automation1_Command_ExecuteAndReturnAeroScriptInteger(
-            controller_, commandExecuteTask_, aeroScriptText.data(), &result);
-    epicsTimeGetCurrent(&t1);
-    double dt = epicsTimeDiffInSeconds(&t1, &t0);
-    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-              "[Automation1 Driver] %s: task %d: expression \"%s\" returned %s after %.3f s\n",
-              functionName, commandExecuteTask_, aeroScriptText.data(),
-              execOk ? "success" : "FAILURE",
-              dt);
-    if (!execOk)
+    if (!Automation1_Command_ExecuteAndReturnAeroScriptInteger(
+            controller_, commandExecuteTask_, aeroScriptText.data(), &result))
     {
         logApiError("Could not execute AeroScript integer command");
         asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
@@ -1663,6 +1694,28 @@ asynStatus Automation1MotorController::initializeHexapod(int hexapodIndex,
     }
 
     numHexapods_++;
+
+    // Spawn the per-hexapod worker thread that will service coordinated moves.
+    // Heap-allocate the trampoline args; the trampoline frees them.
+    HexapodWorkerArgs *args = new HexapodWorkerArgs;
+    args->pC           = this;
+    args->hexapodIndex = hexapodIndex;
+    char threadName[32];
+    snprintf(threadName, sizeof(threadName),
+             "automation1HexWorker%d", hexapodIndex);
+    workerThreadId_[hexapodIndex] = epicsThreadCreate(
+        threadName,
+        epicsThreadPriorityMedium,
+        epicsThreadGetStackSize(epicsThreadStackMedium),
+        (EPICSTHREADFUNC)automation1HexapodMoveWorkerC,
+        args);
+    if (!workerThreadId_[hexapodIndex]) {
+        logError("initializeHexapod: failed to create worker thread for hexapod %d",
+                 hexapodIndex);
+        delete args;
+        return asynError;
+    }
+
     return asynSuccess;
 }
 
@@ -1761,6 +1814,20 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
 {
     if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
         logError("hexapodMoveAll: invalid hexapodIndex=%d", hexapodIndex);
+        return asynError;
+    }
+
+    // 0. Refuse if a coordinated move is already in flight or already queued
+    //    but not yet consumed by the worker.  Prevents overwriting a pending
+    //    payload the worker hasn't consumed and prevents launching a second
+    //    move while the first is still running.  The user must STOP_ALL or
+    //    wait for the current move to complete before issuing a new one.
+    if (coordinatedMoveInFlight_[hexapodIndex] || movePending_[hexapodIndex]) {
+        logError("hexapodMoveAll: hexapod %d already has a coordinated move "
+                 "in flight (inFlight=%d, pending=%d); new MOVE_ALL refused",
+                 hexapodIndex,
+                 (int)coordinatedMoveInFlight_[hexapodIndex],
+                 (int)movePending_[hexapodIndex]);
         return asynError;
     }
 
@@ -1880,60 +1947,106 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
     //    velocity is non-negative.  Applies in both Absolute and Incremental.
     double velocity = fabs(userVelocity) * velocityA1AxisRes / fabs(velocityResolution);
 
-    // 6. Set the target mode on the coordinated-move task.
+    // 6. Fill the per-hexapod pending payload for the worker thread.  The
+    //    blocking API calls (Automation1_Command_SetupTaskTargetMode and
+    //    Automation1_Command_MoveLinear) run in the worker without holding
+    //    the asyn port lock so writeInt32 returns immediately -- allowing
+    //    STOP_ALL and other port writes to be serviced during the move.
     int32_t moveTask = coordinatedMoveTask_[hexapodIndex];
-    if (!Automation1_Command_SetupTaskTargetMode(controller_, moveTask, targetMode)) {
-        logApiError("hexapodMoveAll: Automation1_Command_SetupTaskTargetMode failed");
-        return asynError;
-    }
+    pendingMoveTask_[hexapodIndex]   = moveTask;
+    memcpy(pendingAxes_[hexapodIndex],    axes,    sizeof(axes));
+    memcpy(pendingTargets_[hexapodIndex], targets, sizeof(targets));
+    pendingVelocity_[hexapodIndex]   = velocity;
+    pendingTargetMode_[hexapodIndex] = targetMode;
+    movePending_[hexapodIndex]       = true;
 
-    // 7. Execute the coordinated linear move on the per-hexapod task.
-    //    Diagnostic instrumentation: measure how long
-    //    Automation1_Command_MoveLinear blocks so we can determine whether
-    //    the call itself holds the port lock for the duration of the physical
-    //    motion (in which case the poll thread is starved) or returns
-    //    quickly (implicating a different blocking call elsewhere).  Aerotech
-    //    Studio shows the coordinated-move task as Idle during the physical
-    //    motion, which suggests MoveLinear may return quickly; these prints
-    //    will confirm one way or the other.  Temporary -- remove once the
-    //    root cause is identified.
-    {
-        epicsTimeStamp t0, t1;
-        epicsTimeGetCurrent(&t0);
-        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-                  "[Automation1 Driver] hexapodMoveAll: hexapod %d, task %d: "
-                  "calling Automation1_Command_MoveLinear\n",
-                  hexapodIndex, moveTask);
-        bool moveLinearOk = Automation1_Command_MoveLinear(controller_, moveTask,
-                                                           axes, HEXAPOD_NUM_AXES,
-                                                           targets, HEXAPOD_NUM_AXES,
-                                                           velocity);
-        epicsTimeGetCurrent(&t1);
-        double dt = epicsTimeDiffInSeconds(&t1, &t0);
-        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
-                  "[Automation1 Driver] hexapodMoveAll: hexapod %d, task %d: "
-                  "Automation1_Command_MoveLinear returned %s after %.3f s\n",
-                  hexapodIndex, moveTask,
-                  moveLinearOk ? "success" : "FAILURE",
-                  dt);
-        if (!moveLinearOk)
-        {
-            logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
-            return asynError;
-        }
-    }
-
-    // 8. Mark this hexapod as having an in-flight coordinated move so that
-    //    Automation1MotorController::poll() will skip the blocking
-    //    GetHexapodState/GetHexapodMode AeroScript queries (which stall on the
-    //    controller for the duration of the coordinated move, blocking all
-    //    axis polling) and so that per-axis poll() will report moving=1 and
-    //    stream programPositionFeedback for the hexapod axes.  Wake the
-    //    poller so it switches to movingPollPeriod cadence immediately.
+    // 7. Mark this hexapod as having an in-flight coordinated move so that
+    //    Automation1MotorController::poll() will skip GetHexapodState/
+    //    GetHexapodMode and per-axis poll() will report moving=1 and stream
+    //    programPositionFeedback for the hexapod axes.  Wake the poller so
+    //    it switches to movingPollPeriod cadence immediately without waiting
+    //    for the worker to acquire the payload.
     coordinatedMoveInFlight_[hexapodIndex] = true;
     wakeupPoller();
 
+    // 8. Signal the worker to dispatch the move.  Worker will consume the
+    //    pending payload under the port lock, release the lock, and call
+    //    Automation1_Command_SetupTaskTargetMode + Automation1_Command_MoveLinear.
+    epicsEventSignal(moveEventId_[hexapodIndex]);
+
     return asynSuccess;
+}
+
+// Background worker for one hexapod.  Waits on moveEventId_[hexapodIndex]
+// and, when signaled, drains the pending payload and issues the two
+// blocking Automation1 API calls WITHOUT the asyn port lock held.
+void Automation1MotorController::hexapodMoveWorker(int hexapodIndex)
+{
+    static const char *fn = "hexapodMoveWorker";
+
+    asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+              "[Automation1 Driver] %s: hexapod %d worker started\n",
+              fn, hexapodIndex);
+
+    while (1) {
+        epicsEventWait(moveEventId_[hexapodIndex]);
+        if (shuttingDown_) {
+            asynPrint(pasynUserSelf, ASYN_TRACE_FLOW,
+                      "[Automation1 Driver] %s: hexapod %d worker exiting (shutdown)\n",
+                      fn, hexapodIndex);
+            return;
+        }
+
+        // Copy the pending payload under the port lock.
+        int32_t               moveTask   = 0;
+        int32_t               axes[HEXAPOD_NUM_AXES];
+        double                targets[HEXAPOD_NUM_AXES];
+        double                velocity   = 0.0;
+        Automation1TargetMode targetMode = Automation1TargetMode_Absolute;
+        bool                  haveWork   = false;
+        lock();
+        if (movePending_[hexapodIndex]) {
+            moveTask   = pendingMoveTask_[hexapodIndex];
+            memcpy(axes,    pendingAxes_[hexapodIndex],    sizeof(axes));
+            memcpy(targets, pendingTargets_[hexapodIndex], sizeof(targets));
+            velocity   = pendingVelocity_[hexapodIndex];
+            targetMode = pendingTargetMode_[hexapodIndex];
+            movePending_[hexapodIndex] = false;
+            haveWork = true;
+        }
+        unlock();
+        if (!haveWork) {
+            // Spurious wake (or shutdown-related) -- loop back to wait.
+            continue;
+        }
+
+        // Perform the blocking API sequence without holding the port lock so
+        // the poll thread and other port writes can run concurrently.
+        bool setupOk = Automation1_Command_SetupTaskTargetMode(
+                            controller_, moveTask, targetMode);
+        bool moveOk  = false;
+        if (setupOk) {
+            moveOk = Automation1_Command_MoveLinear(
+                        controller_, moveTask,
+                        axes,    HEXAPOD_NUM_AXES,
+                        targets, HEXAPOD_NUM_AXES,
+                        velocity);
+        }
+
+        // Reacquire the lock to clear the in-flight flag and log errors.
+        lock();
+        if (!setupOk) {
+            logApiError("hexapodMoveWorker: "
+                        "Automation1_Command_SetupTaskTargetMode failed");
+        }
+        if (setupOk && !moveOk) {
+            logApiError("hexapodMoveWorker: "
+                        "Automation1_Command_MoveLinear failed");
+        }
+        coordinatedMoveInFlight_[hexapodIndex] = false;
+        callParamCallbacks(hexapodIndex);
+        unlock();
+    }
 }
 
 asynStatus Automation1MotorController::hexapodStopAll(int hexapodIndex)

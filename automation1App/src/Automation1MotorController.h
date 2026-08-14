@@ -12,6 +12,9 @@
 #include "Automation1MotorAxis.h"
 #include "Include/Automation1.h"
 
+#include <epicsEvent.h>
+#include <epicsThread.h>
+
 #include <cstdarg>
 
 #define MAX_AUTOMATION1_AXES 32
@@ -81,11 +84,19 @@ public:
     // Hexapod mode setpoint (called from writeInt32)
     asynStatus setHexapodMode(int hexapodIndex, int mode);
 
-    // Hexapod coordinated move (called from writeInt32 on MoveAll rising edge)
+    // Hexapod coordinated move (called from writeInt32 on MoveAll rising edge).
+    // Populates the pending payload and signals the per-hexapod worker; does
+    // NOT itself call the blocking Automation1_Command_MoveLinear.
     asynStatus hexapodMoveAll(int hexapodIndex);
 
     // Hexapod coordinated stop (called from writeInt32 on StopAll rising edge)
     asynStatus hexapodStopAll(int hexapodIndex);
+
+    // Per-hexapod background worker loop.  Waits on moveEventId_[hexapodIndex]
+    // and, when signaled, drains the pending payload and issues
+    // Automation1_Command_SetupTaskTargetMode + Automation1_Command_MoveLinear
+    // WITHOUT holding the asyn port lock.  Runs until shuttingDown_ is set.
+    void hexapodMoveWorker(int hexapodIndex);
 
     // These are functions for profile moves.
     asynStatus initializeProfile(size_t maxProfilePoints, size_t maxProfilePulses);
@@ -169,16 +180,48 @@ private:
     // polling (state/mode queries) is not blocked while a coordinated move is in flight.
     int32_t coordinatedMoveTask_[MAX_AUTOMATION1_HEXAPODS];
 
-    // True while a coordinated move dispatched by hexapodMoveAll is executing on
-    // coordinatedMoveTask_[h].  Set by hexapodMoveAll on successful MoveLinear
-    // dispatch; cleared by Automation1MotorController::poll() when
-    // Automation1_Task_GetStatus reports TaskState != ProgramRunning.  Used to
-    // (a) suppress GetHexapodState/GetHexapodMode AeroScript queries in the
-    // controller poll (which block on the controller while a coordinated move
-    // is in flight, stalling all axis polling) and (b) let per-axis poll report
-    // moving=1 and stream programPositionFeedback for hexapod axes during the
-    // move.
+    // True while a coordinated move dispatched by hexapodMoveAll is executing
+    // on coordinatedMoveTask_[h].  Set by hexapodMoveAll immediately after
+    // queuing the move payload to the worker; cleared by the worker after
+    // Automation1_Command_MoveLinear returns (also cleared as a safety net by
+    // Automation1MotorController::poll() when Automation1_Task_GetStatus
+    // reports TaskState != ProgramRunning).  Used to (a) suppress
+    // GetHexapodState/GetHexapodMode AeroScript queries in the controller poll
+    // (which historically were suspected of blocking during coordinated
+    // motion) and (b) let per-axis poll report moving=1 and stream
+    // programPositionFeedback for hexapod axes during the move.
     bool coordinatedMoveInFlight_[MAX_AUTOMATION1_HEXAPODS];
+
+    // --- Per-hexapod background worker plumbing ---
+    //
+    // Automation1_Command_MoveLinear blocks for the entire duration of the
+    // physical coordinated move (measured 72.116 s for a 72 s move).  Calling
+    // it from writeInt32 (which holds the asyn port lock) starves the poll
+    // thread and blocks every other write to the port (including STOP_ALL).
+    // To keep writeInt32 fast, MoveLinear is dispatched from a per-hexapod
+    // worker thread.  The write path (hexapodMoveAll) fills the pending
+    // payload under the port lock, sets coordinatedMoveInFlight_ and
+    // movePending_, wakes the poller, signals moveEventId_, and returns.
+    // The worker (hexapodMoveWorker) waits on moveEventId_, copies the
+    // payload under the port lock, releases the lock, and executes
+    // SetupTaskTargetMode + MoveLinear without holding it.
+
+    // One epicsEvent per hexapod: signaled by hexapodMoveAll, waited on by
+    // hexapodMoveWorker.  Created in the constructor.
+    epicsEventId moveEventId_[MAX_AUTOMATION1_HEXAPODS];
+
+    // One worker thread per hexapod.  Created in initializeHexapod.  Not
+    // joined at destruction (see destructor comment).
+    epicsThreadId workerThreadId_[MAX_AUTOMATION1_HEXAPODS];
+
+    // Move-request payload.  All fields are accessed under the asyn port
+    // lock by both writeInt32 (producer) and the worker (consumer).
+    bool                  movePending_[MAX_AUTOMATION1_HEXAPODS];
+    int32_t               pendingMoveTask_[MAX_AUTOMATION1_HEXAPODS];
+    int32_t               pendingAxes_[MAX_AUTOMATION1_HEXAPODS][HEXAPOD_NUM_AXES];
+    double                pendingTargets_[MAX_AUTOMATION1_HEXAPODS][HEXAPOD_NUM_AXES];
+    double                pendingVelocity_[MAX_AUTOMATION1_HEXAPODS];
+    Automation1TargetMode pendingTargetMode_[MAX_AUTOMATION1_HEXAPODS];
 
     // Axes to be used in a profile move.
     std::vector<int> profileAxes_;
