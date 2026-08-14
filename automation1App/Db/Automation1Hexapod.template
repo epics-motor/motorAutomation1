@@ -76,6 +76,15 @@ record(bo,"$(P)$(H)MOVE_ALL") {
     field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_MOVE_ALL")
 }
 
+record(bo,"$(P)$(H)STOP_ALL") {
+    field(DESC,"Stop all motors")
+    field(DTYP,"asynInt32")
+    field(ZNAM,"Off")
+    field(ONAM,"On")
+    field(VAL, "0")
+    field(OUT, "@asyn($(PORT),$(ADDR))AUTOMATION1_HXP_STOP_ALL")
+}
+
 record(bo,"$(P)$(H)MOVE_ALL_MODE") {
     field(DESC,"MoveAll target mode")
     field(DTYP,"asynInt32")

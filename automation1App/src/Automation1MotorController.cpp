@@ -140,6 +140,7 @@ void Automation1MotorController::createAsynParams(void)
     createParam(AUTOMATION1_HXP_ReadModeString,    asynParamInt32,        &AUTOMATION1_HXP_ReadMode_);
     createParam(AUTOMATION1_HXP_WriteModeString,   asynParamInt32,        &AUTOMATION1_HXP_WriteMode_);
     createParam(AUTOMATION1_HXP_MoveAllString,     asynParamInt32,        &AUTOMATION1_HXP_MoveAll_);
+    createParam(AUTOMATION1_HXP_StopAllString,     asynParamInt32,        &AUTOMATION1_HXP_StopAll_);
     createParam(AUTOMATION1_HXP_TargetXString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetX_);
     createParam(AUTOMATION1_HXP_TargetYString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetY_);
     createParam(AUTOMATION1_HXP_TargetZString,     asynParamFloat64,      &AUTOMATION1_HXP_TargetZ_);
@@ -247,6 +248,22 @@ asynStatus Automation1MotorController::writeInt32(asynUser *pasynUser, epicsInt3
         }
         else {
             logError("writeInt32: MoveAll value=%d invalid (must be 0 or 1)", value);
+            return asynError;
+        }
+    }
+    else if (function == AUTOMATION1_HXP_StopAll_)
+    {
+        if (value == 1) {
+            asynStatus stopStatus = hexapodStopAll(addr);
+            if (stopStatus != asynSuccess) {
+                return stopStatus;
+            }
+        }
+        else if (value == 0) {
+            // Record is just being reset; nothing to do.
+        }
+        else {
+            logError("writeInt32: StopAll value=%d invalid (must be 0 or 1)", value);
             return asynError;
         }
     }
@@ -1823,6 +1840,31 @@ asynStatus Automation1MotorController::hexapodMoveAll(int hexapodIndex)
                                         velocity))
     {
         logApiError("hexapodMoveAll: Automation1_Command_MoveLinear failed");
+        return asynError;
+    }
+
+    return asynSuccess;
+}
+
+asynStatus Automation1MotorController::hexapodStopAll(int hexapodIndex)
+{
+    if (hexapodIndex < 0 || hexapodIndex >= MAX_AUTOMATION1_HEXAPODS) {
+        logError("hexapodStopAll: invalid hexapodIndex=%d", hexapodIndex);
+        return asynError;
+    }
+
+    // Build the axis index array from firstHexapodAxisIndex_.  Abort is
+    // unconditional: no mode gate, no target/velocity conversion, no
+    // task involvement -- Automation1_Command_Abort operates directly on
+    // the axes.
+    int32_t axes[HEXAPOD_NUM_AXES];
+    int first = firstHexapodAxisIndex_[hexapodIndex];
+    for (int i = 0; i < HEXAPOD_NUM_AXES; i++) {
+        axes[i] = (int32_t)(first + i);
+    }
+
+    if (!Automation1_Command_Abort(controller_, axes, HEXAPOD_NUM_AXES)) {
+        logApiError("hexapodStopAll: Automation1_Command_Abort failed");
         return asynError;
     }
 
