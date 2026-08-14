@@ -233,3 +233,36 @@ record(seq, "$(P)$(H)ABS_TARGET_SYNC") {
     field(SDIS, "$(P)$(H)MOVE_ALL_MODE NPP NMS")
     field(DISV, "0")
 }
+
+### Kludge to work around problems cause by the hexapod temporarily entering the strut mode when a coordinated move is aborted.
+#
+# It can take as much as 1.5 seconds for the hexapod to return to the correct state:
+# IOC:HP2:STOP_ALL      2026-08-14 13:57:45.154038 On
+# IOC:HP2:Mode_RBV      2026-08-14 13:57:45.452096 Disabled
+# IOC:HP2:Mode_RBV      2026-08-14 13:57:46.601040 Global
+
+record(seq, "$(P)$(H)HXP_STOP_SEQ") {
+    field(DESC, "Hexapod stop sequence")
+    field(SELM, "All")
+    # Send the stop command to the hexapod
+    field(DOL0, "1")
+    field(LNK0, "$(P)$(H)STOP_ALL PP NMS")
+    # Wait for the hexapod to stop, enter strut mode, and then return to the previous mode
+    field(DLY1, "2.0")
+    field(DOL1, "1")
+    field(LNK1, "$(P)$(H)SYNC_MOTOR_VALS PP NMS")
+}
+
+# Sync hexapod motor VAL fields with their RBV
+record(dfanout, "$(P)$(H)SYNC_MOTOR_VALS") {
+    field(DESC, "Sync Hexapod VALs")
+    field(OMSL, "supervisory")
+    field(VAL,  "1")
+    field(SELM, "All")
+    field(OUTA, "$(P)$(M1).SYNC PP NMS")
+    field(OUTB, "$(P)$(M2).SYNC PP NMS")
+    field(OUTC, "$(P)$(M3).SYNC PP NMS")
+    field(OUTD, "$(P)$(M4).SYNC PP NMS")
+    field(OUTE, "$(P)$(M5).SYNC PP NMS")
+    field(OUTF, "$(P)$(M6).SYNC PP NMS")
+}

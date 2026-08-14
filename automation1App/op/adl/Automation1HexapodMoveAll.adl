@@ -1579,7 +1579,7 @@ text {
 		height=40
 	}
 	control {
-		chan="$(P)$(H)STOP_ALL"
+		chan="$(P)$(H)HXP_STOP_SEQ.PROC"
 		clr=31
 		bclr=20
 	}

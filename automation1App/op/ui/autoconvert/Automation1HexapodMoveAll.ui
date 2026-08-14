@@ -4300,7 +4300,7 @@ border-radius: 2px;
                 <enum>EPushButton::WidthAndHeight</enum>
             </property>
             <property name="channel">
-                <string>$(P)$(H)STOP_ALL</string>
+                <string>$(P)$(H)HXP_STOP_SEQ.PROC</string>
             </property>
             <property name="foreground">
                 <color alpha="255">
