@@ -342,6 +342,10 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     double positionError;
     int axisFaults;
     int done;
+    // Declared here (not at the point of use below) so that the "goto skip;"
+    // statements after Automation1_Status_GetResults and
+    // Automation1_Parameter_GetAxisValue do not jump past its initialization.
+    bool coordMoveActive = false;
     
     // This actually retrieves the status items from the controller.
     if (!Automation1_Status_GetResults(pC_->controller_,
@@ -397,8 +401,8 @@ asynStatus Automation1MotorAxis::poll(bool* moving)
     // pre-move value.  When coordMoveActive is true we force moving = 1,
     // done = 0 and stream programPositionFeedback (physical position) as the
     // RMP so the motor record's .RBV tracks the physical motion.
-    bool coordMoveActive = isHexapodAxis_
-                           && pC_->coordinatedMoveInFlight_[hexapodIndex_];
+    coordMoveActive = isHexapodAxis_
+                      && pC_->coordinatedMoveInFlight_[hexapodIndex_];
 
     if (coordMoveActive)
     {
